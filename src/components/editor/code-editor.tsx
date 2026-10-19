@@ -27,7 +27,9 @@ export function CodeEditor({
   wrap,
   fontSize,
   onSave,
+  onReady,
 }: {
+  onReady?: (insert: (text: string) => void) => void;
   value: string;
   onChange: (v: string) => void;
   dark: boolean;
@@ -68,6 +70,11 @@ export function CodeEditor({
     });
     view.current = v;
     v.focus();
+    onReady?.((text) => {
+      const sel = v.state.selection.main;
+      v.dispatch({ changes: { from: sel.from, to: sel.to, insert: text }, selection: { anchor: sel.from + text.length } });
+      v.focus();
+    });
     return () => v.destroy();
     // Seed once; later `value` changes come from this editor itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps

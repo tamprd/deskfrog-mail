@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import { MediaPickerModal } from "@/components/media-library";
+import { MediaContext } from "./panel";
 import dynamic from "next/dynamic";
 import { FONTS, type DesignSettings } from "@/lib/email/design";
 
@@ -46,6 +48,9 @@ export function HtmlModal({
   const [width, setWidth] = useState(600);
   const [tab, setTab] = useState<"code" | "preview">("code"); // small screens only
   const [preview, setPreview] = useState(initial);
+  const media = useContext(MediaContext);
+  const [picking, setPicking] = useState(false);
+  const insert = useRef<((text: string) => void) | null>(null);
   const dirty = code !== initial;
 
   useEffect(() => setPrefs(loadPrefs()), []);
@@ -72,7 +77,7 @@ export function HtmlModal({
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !picking) {
         e.preventDefault();
         cancel();
       }
@@ -105,6 +110,7 @@ export function HtmlModal({
               <button type="button" onClick={() => setWidth(600)} className={`px-2.5 py-1.5 text-sm ${width === 600 ? "bg-frog-700 text-white" : ""}`} title="Desktop preview">🖥</button>
               <button type="button" onClick={() => setWidth(375)} className={`px-2.5 py-1.5 text-sm ${width === 375 ? "bg-frog-700 text-white" : ""}`} title="Mobile preview">📱</button>
             </div>
+            {media && <button type="button" className="btn-secondary px-3 py-1.5" onClick={() => setPicking(true)} title="Insert an image from your media library">🖼 Insert image</button>}
             <button type="button" className="btn-secondary" onClick={cancel}>Cancel</button>
             <button type="button" className="btn-primary" onClick={apply} title="Apply (Ctrl+S)">Apply</button>
           </div>
@@ -112,7 +118,7 @@ export function HtmlModal({
 
         <div className="flex min-h-0 flex-1">
           <div className={`min-w-0 flex-1 ${tab === "code" ? "block" : "hidden"} md:block md:basis-1/2 lg:basis-3/5`}>
-            <CodeEditor value={initial} onChange={setCode} dark={prefs.dark} wrap={prefs.wrap} fontSize={prefs.fontSize} onSave={apply} />
+            <CodeEditor value={initial} onChange={setCode} dark={prefs.dark} wrap={prefs.wrap} fontSize={prefs.fontSize} onSave={apply} onReady={(fn) => (insert.current = fn)} />
           </div>
           <div className={`min-w-0 flex-1 flex-col border-l border-line bg-soft ${tab === "preview" ? "flex" : "hidden"} md:flex md:basis-1/2 lg:basis-2/5`}>
             <p className="border-b border-line px-3 py-1.5 text-xs text-muted">Live preview · scripts are blocked, as in real inboxes</p>
@@ -121,6 +127,18 @@ export function HtmlModal({
             </div>
           </div>
         </div>
+        {picking && media && (
+          <MediaPickerModal
+            actions={media}
+            pickLabel="Insert"
+            onClose={() => setPicking(false)}
+            onPick={(i) => {
+              const tag = `<img src="${i.url}" alt="" width="552" style="display:block;width:100%;max-width:552px;height:auto;border:0">`;
+              if (insert.current) insert.current(tag);
+              else setCode((c) => c + "\n" + tag);
+            }}
+          />
+        )}
         <footer className="border-t border-line px-4 py-2 text-[11px] text-muted">
           Tip: email clients ignore most modern CSS — use tables and inline styles. <kbd>Ctrl</kbd>+<kbd>S</kbd> applies, <kbd>Esc</kbd> cancels, <kbd>Ctrl</kbd>+<kbd>F</kbd> finds.
         </footer>

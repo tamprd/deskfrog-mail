@@ -8,13 +8,14 @@ export async function enqueueCampaign(campaignId: string, workspaceId: string) {
   const db = admin();
   const { data: c } = await db
     .from("campaigns")
-    .select("id, status, from_name, from_email, reply_to, html, subject")
+    .select("id, status, from_name, from_email, reply_to, html, text, subject, format")
     .eq("id", campaignId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!c) throw new ApiError(404, "not_found", "Campaign not found");
   if (!["draft", "scheduled"].includes(c.status)) throw new ApiError(409, "invalid_state", `Campaign is already ${c.status}`);
-  if (!c.html?.trim() || !c.subject?.trim()) throw new ApiError(422, "incomplete", "Campaign needs a subject and content");
+  const body = c.format === "text" ? c.text : c.html;
+  if (!body?.trim() || !c.subject?.trim()) throw new ApiError(422, "incomplete", "Campaign needs a subject and content");
 
   const ws = await getWorkspace(workspaceId);
   assertActive(ws);

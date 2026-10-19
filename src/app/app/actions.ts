@@ -119,11 +119,30 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
       html = t.html;
     }
   }
-  // ✨ AI: write the whole email from a brief (overrides the template choice).
-  const brief = f("ai_brief").slice(0, 3000);
-  let subject = f("subject");
   if (!f("name") || !f("from_name") || !f("from_email")) return { error: "Fill in the campaign name and sender details." };
-  if (brief) {
+  let subject = f("subject");
+  // How the content is authored: template (default) | blank | html | text | ai
+  const mode = f("mode") || "template";
+  let format: "design" | "html" | "text" = "design";
+  let text: string | null = null;
+
+  if (mode === "blank") {
+    design = getStarter("blank").build(brand);
+    html = null;
+  } else if (mode === "html") {
+    const pasted = String(formData.get("html_paste") ?? "");
+    if (!pasted.trim()) return { error: "Paste your HTML first." };
+    if (pasted.length > 500_000) return { error: "That HTML is too large (500 KB max)." };
+    format = "html";
+    html = pasted;
+    if (!subject) subject = /<title>([^<]{1,200})<\/title>/i.exec(pasted)?.[1]?.trim() ?? "";
+  } else if (mode === "text") {
+    format = "text";
+    text = String(formData.get("plain_text") ?? "").slice(0, 200_000);
+    html = "";
+  } else if (mode === "ai") {
+    const brief = f("ai_brief").slice(0, 3000);
+    if (!brief) return { error: "Describe the email for the AI to write." };
     try {
       const { generateDesign } = await import("@/lib/ai/claude");
       const { withCredit } = await import("@/lib/ai/credits");
@@ -145,10 +164,12 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
     from_email: f("from_email").toLowerCase(),
     list_id: f("list_id") || null,
     tag_filter: f("tags").split(",").map((t) => t.trim()).filter(Boolean),
-    design,
-    html: html ?? (await renderDesign(design, brand)),
+    format,
+    text,
+    design: format === "design" ? design : null,
+    html: format === "design" ? html ?? (await renderDesign(design, brand)) : html ?? "",
   };
-  if (!row.subject) return { error: "Add a subject line (or describe the email for AI to write one)." };
+  if (!row.subject) return { error: "Add a subject line." };
   const { data, error } = await admin().from("campaigns").insert(row).select("id").single();
   if (error) return { error: error.message };
   redirect(`/editor/${data.id}`);

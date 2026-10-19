@@ -7,6 +7,8 @@ import { Canvas, type CanvasApi } from "./canvas";
 import { BlockPanel, SettingsPanel, resizeColumns } from "./panel";
 import { AiPanel, type AiActions } from "./ai-panel";
 import { HtmlModal } from "./html-modal";
+import { MediaContext } from "./panel";
+import type { MediaActions } from "@/components/media-library";
 
 type Actions = {
   save: (design: Design, meta: { subject?: string }) => Promise<{ ok?: boolean; error?: string; savedAt?: string }>;
@@ -14,6 +16,7 @@ type Actions = {
   sendTest: (design: Design, subject: string) => Promise<{ ok?: string; error?: string }>;
   upload: (fd: FormData) => Promise<{ url?: string; error?: string }>;
   saveTemplate: (name: string, design: Design, subject: string) => Promise<{ ok?: string; error?: string }>;
+  media: MediaActions;
 } & AiActions;
 
 type State = { past: Design[]; present: Design; future: Design[] };
@@ -158,6 +161,7 @@ export function EmailEditor({
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (htmlEditing) return; // the code editor handles its own keys
+      if ((e.target as HTMLElement)?.closest?.("[role=dialog][aria-modal]")) return; // pickers, previews
       const typing = (e.target as HTMLElement)?.closest("input, textarea, select, [contenteditable=true]");
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "s") {
@@ -255,6 +259,7 @@ export function EmailEditor({
   );
 
   return (
+    <MediaContext.Provider value={actions.media}>
     <div className="flex h-[100dvh] flex-col bg-soft">
       {/* Top bar */}
       <header className="flex flex-wrap items-center gap-3 border-b border-line bg-white px-4 py-2.5">
@@ -368,5 +373,6 @@ export function EmailEditor({
         </div>
       )}
     </div>
+    </MediaContext.Provider>
   );
 }

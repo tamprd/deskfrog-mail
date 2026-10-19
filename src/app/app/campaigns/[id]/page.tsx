@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
-import { footerHtml, merge, withFooter } from "@/lib/render";
+import { footerHtml, footerText, merge, withFooter } from "@/lib/render";
 import { remainingSends } from "@/lib/workspace";
 import { ActionForm, Submit } from "@/components/action-form";
 import { StatusPill } from "@/components/status";
@@ -85,12 +85,16 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
             <p><span className="text-muted">From:</span> {c.from_name} &lt;{c.from_email}&gt;</p>
             <p><span className="text-muted">To:</span> {c.list?.name ?? "All subscribed contacts"}{c.tag_filter?.length ? ` tagged ${c.tag_filter.join(", ")}` : ""}</p>
           </div>
-          <iframe title="Email preview" srcDoc={preview} sandbox="" className="h-[560px] w-full bg-white" />
+          {c.format === "text" ? (
+            <pre className="h-[560px] overflow-auto whitespace-pre-wrap bg-white p-6 font-mono text-sm">{merge(c.text ?? "", sample, true) + footerText({ senderName: c.from_name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required })}</pre>
+          ) : (
+            <iframe title="Email preview" srcDoc={preview} sandbox="" className="h-[560px] w-full bg-white" />
+          )}
         </section>
 
         {draft ? (
           <aside className="space-y-4">
-            <Link href={`/editor/${c.id}`} className="btn-primary w-full">✏️ Edit design</Link>
+            <Link href={`/editor/${c.id}`} className="btn-primary w-full">✏️ {c.format === "html" ? "Edit HTML" : c.format === "text" ? "Edit text" : "Edit design"}</Link>
             <ActionForm action={sendCampaign} className="card p-5">
               <input type="hidden" name="id" value={c.id} />
               <h2 className="font-semibold">Ready to send?</h2>

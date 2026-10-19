@@ -103,6 +103,17 @@ Verify `DeskFrog-Signature: t=<unix>,v1=<hex>`, where `v1 = HMAC_SHA256(secret, 
 - Autosave, undo/redo, preview on desktop and mobile, and send test
 - The API accepts the same `design` JSON on `POST /campaigns` and `PATCH /campaigns/:id`
 
+## Campaign formats
+
+New campaign → **Start with**: Template, Drag & drop (blank), Paste HTML, Plain text, or Write with AI.
+- `design`: the block editor; MJML renders the HTML.
+- `html`: raw HTML sent exactly as written, edited in a full-page code editor with live preview. The footer goes in before `</body>`. API campaigns created with `html` (no `design`) use this format.
+- `text`: plain-text only (no HTML part), with a plain-text unsubscribe footer.
+
+## Media library
+
+Media (in the sidebar) shows every uploaded image in the `email-assets` bucket (`<workspace_id>/…`), with search, drag-and-drop upload, copy link and delete. Image fields in the editor and the HTML editors have a 🖼 Library / Insert image picker.
+
 ## AI (Claude)
 
 Set `ANTHROPIC_API_KEY` in Vercel. Code is in `src/lib/ai/`.

@@ -24,8 +24,10 @@ export const PATCH = route<P>(async (req, { workspaceId }, { id }) => {
     if (!isDesign(input.design)) throw new ApiError(422, "invalid_design", "design must be a Desk Frog Mail design (version 1)");
     const { data: ws } = await admin().from("workspaces").select("brand").eq("id", workspaceId).single();
     patch.html = await renderDesign(input.design, (ws?.brand ?? {}) as Partial<Brand>);
+    patch.format = "design";
   } else if (input.html) {
     patch.design = null; // raw HTML replaces any block design
+    patch.format = "html";
   }
   const { data, error } = await admin()
     .from("campaigns")

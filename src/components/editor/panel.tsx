@@ -1,5 +1,9 @@
 "use client";
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
+import { MediaPickerModal, type MediaActions } from "@/components/media-library";
+
+/** Media library actions, provided by the editor so any image field can open the picker. */
+export const MediaContext = createContext<MediaActions | null>(null);
 import { BLOCK_LABELS, FONTS, SOCIAL_NETWORKS, uid, type Align, type Block, type ChildBlock, type Design, type DesignSettings, type SocialNetwork } from "@/lib/email/design";
 
 type Any = Block | ChildBlock;
@@ -41,6 +45,8 @@ function AlignField({ value, onChange }: { value: Align; onChange: (a: Align) =>
 }
 
 function ImageUpload({ onUploaded, upload }: { onUploaded: (url: string) => void; upload: (fd: FormData) => Promise<{ url?: string; error?: string }> }) {
+  const media = useContext(MediaContext);
+  const [picking, setPicking] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -65,9 +71,13 @@ function ImageUpload({ onUploaded, upload }: { onUploaded: (url: string) => void
           e.target.value = "";
         }}
       />
-      <button type="button" className="btn-secondary w-full" disabled={busy} onClick={() => ref.current?.click()}>
-        {busy ? "Uploading…" : "⬆ Upload image"}
-      </button>
+      <div className="flex gap-2">
+        <button type="button" className="btn-secondary flex-1" disabled={busy} onClick={() => ref.current?.click()}>
+          {busy ? "Uploading…" : "⬆ Upload"}
+        </button>
+        {media && <button type="button" className="btn-secondary flex-1" onClick={() => setPicking(true)}>🖼 Library</button>}
+      </div>
+      {picking && media && <MediaPickerModal actions={media} onPick={(i) => onUploaded(i.url)} onClose={() => setPicking(false)} />}
       {err && <p className="mt-1 text-xs text-danger">{err}</p>}
     </div>
   );

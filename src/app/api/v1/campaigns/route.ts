@@ -57,7 +57,7 @@ export const POST = route(async (req, { workspaceId }) => {
 
   const { data, error } = await db
     .from("campaigns")
-    .insert({ ...input, html, text, design, tag_filter: input.tag_filter ?? [], workspace_id: workspaceId })
+    .insert({ ...input, html, text, design, format: design ? "design" : "html", tag_filter: input.tag_filter ?? [], workspace_id: workspaceId })
     .select(COLUMNS)
     .single();
   dbError(error);

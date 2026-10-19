@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
@@ -90,23 +89,11 @@ export async function sendTest(campaignId: string, design: Design, subject: stri
   }
 }
 
-const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
-
-/** Upload an image to the public email-assets bucket and return its URL. */
+/** Upload an image to the media library and return its URL. */
 export async function uploadImage(formData: FormData) {
-  const { workspace } = await requireSession();
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { error: "No file" };
-  if (!EXT[file.type]) return { error: "Use a PNG, JPG, GIF or WebP image." };
-  if (file.size > 5 * 1024 * 1024) return { error: "Images must be under 5 MB." };
-
-  const path = `${workspace.id}/${randomUUID()}.${EXT[file.type]}`;
-  const db = admin();
-  const { error } = await db.storage
-    .from("email-assets")
-    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, cacheControl: "31536000" });
-  if (error) return { error: error.message };
-  return { url: db.storage.from("email-assets").getPublicUrl(path).data.publicUrl };
+  const { uploadMedia } = await import("@/lib/media");
+  const r = await uploadMedia(formData);
+  return r.url ? { url: r.url } : { error: r.error ?? "Upload failed" };
 }
 
 /** Save the current design as a reusable workspace template. */
@@ -150,5 +137,79 @@ export async function aiSubjects(design: Design, current: string) {
     return { ideas, usage: await aiUsage(workspace.id, workspace.plan.id) };
   } catch (e) {
     return { error: (e as Error).message || "The AI couldn't do that. Try again." };
+  }
+}
+
+// ── Raw HTML / plain-text campaigns ──────────────────────
+
+const MAX_SOURCE = 500_000;
+
+/** Save a raw-HTML or plain-text campaign exactly as written. */
+export async function saveSource(campaignId: string, content: string, subject: string) {
+  const { workspace } = await requireSession();
+  if (content.length > MAX_SOURCE) return { error: "That's too large (500 KB max)." };
+  const db = admin();
+  const { data: c } = await db.from("campaigns").select("format").eq("id", campaignId).eq("workspace_id", workspace.id).maybeSingle();
+  if (!c) return { error: "Campaign not found" };
+  const patch: Record<string, unknown> =
+    c.format === "text"
+      ? { text: content, html: "" }
+      : { html: content, text: null, design: null };
+  if (subject.trim()) patch.subject = subject.trim().slice(0, 250);
+  const { data, error } = await db
+    .from("campaigns")
+    .update(patch)
+    .eq("id", campaignId)
+    .eq("workspace_id", workspace.id)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: "This campaign has already been sent and can't be edited." };
+  revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true, savedAt: new Date().toISOString() };
+}
+
+/** Exactly what recipients get: merge sample data, add the footer (and badge on Free). */
+export async function previewSource(content: string, format: "html" | "text", fromName: string) {
+  const { workspace, user } = await requireSession();
+  const sample = { email: user.email ?? "you@example.com", first_name: "Alex", last_name: "Sample" };
+  const footer = { senderName: fromName || workspace.name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required };
+  if (format === "text") return { text: merge(content, sample, true) + footerText(footer) };
+  return { html: withFooter(merge(content, sample), footerHtml(footer)) };
+}
+
+export async function sendTestSource(campaignId: string, content: string, subject: string) {
+  const { workspace, user } = await requireSession();
+  if (!user.email) return { error: "Your account has no email address." };
+  const { data: c } = await admin()
+    .from("campaigns")
+    .select("from_name, from_email, format")
+    .eq("id", campaignId)
+    .eq("workspace_id", workspace.id)
+    .maybeSingle();
+  if (!c) return { error: "Campaign not found" };
+  if (!content.trim()) return { error: "Add some content first." };
+  if ((await remainingSends(workspace)) < 1) return { error: "You've hit your send limit for now." };
+  try {
+    const { from, replyTo } = await resolveFrom(workspace, c.from_name, c.from_email);
+    const sample = { email: user.email, first_name: "Alex", last_name: "Sample" };
+    const footer = { senderName: c.from_name, senderAddress: workspace.sender_address, unsubToken: "test", badge: workspace.plan.badge_required };
+    const isText = c.format === "text";
+    await sendEmail({
+      from,
+      to: user.email,
+      replyTo,
+      subject: `[Test] ${merge(subject, sample, true)}`,
+      html: isText ? null : withFooter(merge(content, sample), footerHtml(footer)),
+      text: (isText ? merge(content, sample, true) : htmlToText(merge(content, sample, true))) + footerText(footer),
+      tags: { workspace: workspace.id, kind: "test" },
+    });
+    await admin().rpc("record_sends", { ws: workspace.id, n: 1 });
+    return { ok: `Test sent to ${user.email}` };
+  } catch (e) {
+    const msg = (e as Error).message ?? "";
+    if (/Missing environment variable|credential|region/i.test(msg)) return { error: "Email sending isn't set up yet (Amazon SES keys missing)." };
+    return { error: msg || "Couldn't send the test." };
   }
 }
