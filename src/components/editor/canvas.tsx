@@ -120,6 +120,29 @@ function BlockView({ b, d, api, brand }: { b: Block; d: Design; api: CanvasApi; 
           ))}
         </div>
       );
+    case "hero":
+      return (
+        <div
+          style={{
+            padding: "48px 32px",
+            textAlign: b.align,
+            color: b.textColor,
+            backgroundColor: b.bg,
+            backgroundImage: b.image ? `url("${b.image.replace(/"/g, "")}")` : undefined,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          {b.eyebrow && <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>{b.eyebrow}</div>}
+          <div style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 12 }}>{b.heading}</div>
+          {b.text && <div style={{ fontSize: 17, lineHeight: 1.55, whiteSpace: "pre-line" }}>{b.text}</div>}
+          {b.buttonLabel && (
+            <div style={{ marginTop: 16, display: "flex", justifyContent: justify[b.align] }}>
+              <span style={{ background: b.buttonBg ?? "#fff", color: b.buttonColor ?? s.buttonColor, padding: "14px 28px", borderRadius: 8, fontWeight: 700 }}>{b.buttonLabel}</span>
+            </div>
+          )}
+        </div>
+      );
     case "html":
       return (
         <div style={{ padding: "8px 24px" }}>
@@ -190,7 +213,9 @@ function SortableBlock({ b, d, api, brand }: { b: Block; d: Design; api: CanvasA
         ⠿
       </button>
       <Selectable id={b.id} api={api} label={BLOCK_LABELS[b.type]}>
-        <BlockView b={b} d={d} api={api} brand={brand} />
+        <div style={b.sectionBg ? { background: b.sectionBg, padding: "12px 0" } : undefined}>
+          <BlockView b={b} d={d} api={api} brand={brand} />
+        </div>
       </Selectable>
     </div>
   );

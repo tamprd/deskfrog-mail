@@ -92,9 +92,14 @@ Verify `DeskFrog-Signature: t=<unix>,v1=<hex>`, where `v1 = HMAC_SHA256(secret, 
 ## Email editor
 
 `/editor/:campaignId` is a drag-and-drop block builder. A design is JSON (`src/lib/email/design.ts`) and is rendered to email-safe HTML with MJML (`src/lib/email/render.ts`) on every save.
-- Blocks: logo, heading, text (rich text via TipTap, with merge tags), image (uploads to the `email-assets` Storage bucket), button, 2 or 3 columns, divider, spacer, social, raw HTML
+- Blocks: logo, hero banner (colour or photo background), heading, text (rich text via TipTap, with merge tags), image (uploads to the `email-assets` Storage bucket), button, 2 or 3 columns, divider, spacer, social, raw HTML
 - Brand kit per workspace (Settings → Brand): logo, colours and font apply to new emails
-- Starter templates: Blank, Newsletter, Event entries open, Results are up, Announcement
+- 14 starter templates (`src/lib/email/templates.ts`):
+  - General: Blank, Newsletter, Announcement, Welcome, Sale/promo, Event invite, Feedback request, Plain letter
+  - Motorsport: Entries open, Results are up, Final instructions, Season calendar
+  - Business: Service reminder, Monthly specials
+- Templates page with live, brand-coloured previews. "Save as template" in the editor adds a design to the workspace's own templates.
+- Any top-level block can have a section background colour (for coloured bands)
 - Autosave, undo/redo, preview on desktop and mobile, and send test
 - The API accepts the same `design` JSON on `POST /campaigns` and `PATCH /campaigns/:id`
 

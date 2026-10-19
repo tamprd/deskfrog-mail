@@ -14,6 +14,15 @@ const rawSafe = (html: string) => html.replace(/<\/?mj-[^>]*>/gi, "").replace(/<
 
 const HEADING_SIZE = { 1: 32, 2: 24, 3: 20 } as const;
 
+export type RenderOptions = { placeholders?: boolean };
+let opts: RenderOptions = {};
+
+/** Grey box shown for empty images in previews/thumbnails only (never in sent mail). */
+const placeholder = (height = 180, label = "Image") =>
+  opts.placeholders
+    ? `<mj-text padding="8px 24px"><div style="height:${height}px;border-radius:12px;background:#E7F3EB;color:#6B9B7A;font-size:13px;line-height:${height}px;text-align:center">${label}</div></mj-text>`
+    : "";
+
 function child(b: ChildBlock, d: Design): string {
   const s = d.settings;
   switch (b.type) {
@@ -22,7 +31,7 @@ function child(b: ChildBlock, d: Design): string {
     case "text":
       return `<mj-text align="${b.align}" css-class="df-text" padding="8px 24px">${rawSafe(b.html)}</mj-text>`;
     case "image": {
-      if (!b.src) return "";
+      if (!b.src) return placeholder(b.width < 60 ? 120 : 200);
       const href = url(b.href);
       return `<mj-image src="${esc(b.src)}" alt="${esc(b.alt)}" align="${b.align}" width="${Math.round((600 - 48) * Math.min(100, Math.max(10, b.width)) / 100)}px"${href ? ` href="${esc(href)}"` : ""}${b.rounded ? ` border-radius="12px"` : ""} padding="8px 24px" />`;
     }
@@ -38,8 +47,9 @@ function child(b: ChildBlock, d: Design): string {
 const SOCIAL_NAME: Record<string, string> = { facebook: "facebook", instagram: "instagram", x: "x", youtube: "youtube", linkedin: "linkedin", web: "web" };
 
 function block(b: Block, d: Design, brand: Partial<Brand>): string {
-  const bg = d.settings.contentBackground;
-  const section = (inner: string, padding = "0px") =>
+  const bg = color(b.sectionBg, d.settings.contentBackground);
+  const band = b.sectionBg ? "12px" : "0px";
+  const section = (inner: string, padding = `${band} 0px`) =>
     `<mj-section background-color="${bg}" padding="${padding}"><mj-column>${inner}</mj-column></mj-section>`;
 
   switch (b.type) {
@@ -62,7 +72,24 @@ function block(b: Block, d: Design, brand: Partial<Brand>): string {
         .map((c) => `<mj-column vertical-align="top">${c.map((x) => child(x, d)).join("")}</mj-column>`)
         .join("");
       const inner = b.stackOnMobile ? cols : `<mj-group>${cols}</mj-group>`;
-      return `<mj-section background-color="${bg}" padding="0px 12px">${inner}</mj-section>`;
+      return `<mj-section background-color="${bg}" padding="${band} 12px">${inner}</mj-section>`;
+    }
+    case "hero": {
+      const fg = color(b.textColor, "#FFFFFF");
+      const img = url(b.image);
+      const href = url(b.buttonHref);
+      const parts = [
+        b.eyebrow ? `<mj-text align="${b.align}" color="${fg}" font-size="13px" font-weight="700" letter-spacing="0.12em" text-transform="uppercase" padding="0 32px 8px">${esc(b.eyebrow)}</mj-text>` : "",
+        `<mj-text align="${b.align}" color="${fg}" font-size="34px" line-height="1.15" font-weight="800" padding="0 32px 12px"><h1 style="margin:0;font-size:inherit;font-weight:inherit;letter-spacing:-0.02em">${esc(b.heading)}</h1></mj-text>`,
+        b.text ? `<mj-text align="${b.align}" color="${fg}" font-size="17px" line-height="1.55" padding="0 32px 8px">${esc(b.text).replace(/\n/g, "<br>")}</mj-text>` : "",
+        b.buttonLabel && href
+          ? `<mj-button href="${esc(href)}" align="${b.align}" background-color="${color(b.buttonBg, "#FFFFFF")}" color="${color(b.buttonColor, d.settings.buttonColor)}" font-weight="700" font-size="16px" border-radius="8px" inner-padding="14px 28px" padding="16px 32px 0">${esc(b.buttonLabel)}</mj-button>`
+          : "",
+      ].join("");
+      const bgAttrs = img
+        ? `background-url="${esc(img)}" background-size="cover" background-repeat="no-repeat" background-position="center center" background-color="${color(b.bg, "#0F5132")}"`
+        : `background-color="${color(b.bg, "#0F5132")}"`;
+      return `<mj-section ${bgAttrs} padding="48px 0"><mj-column>${parts}</mj-column></mj-section>`;
     }
     default:
       return section(child(b, d));
@@ -102,8 +129,11 @@ export function designToMjml(d: Design, brand: Partial<Brand> = {}) {
 type MjmlResult = { html: string; errors: { formattedMessage: string }[] };
 
 /** Render a design to email-safe HTML. */
-export async function renderDesign(d: Design, brand: Partial<Brand> = {}): Promise<string> {
+export async function renderDesign(d: Design, brand: Partial<Brand> = {}, options: RenderOptions = {}): Promise<string> {
   const run = mjml2html as unknown as (mjml: string, opts: object) => Promise<MjmlResult> | MjmlResult;
-  const out = await run(designToMjml(d, brand), { validationLevel: "soft", keepComments: false });
+  opts = options;
+  const source = designToMjml(d, brand); // generated synchronously while `opts` is set
+  opts = {};
+  const out = await run(source, { validationLevel: "soft", keepComments: false });
   return out.html;
 }

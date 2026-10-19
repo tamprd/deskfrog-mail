@@ -11,6 +11,7 @@ type Actions = {
   preview: (design: Design, fromName: string) => Promise<{ html?: string; error?: string }>;
   sendTest: (design: Design, subject: string) => Promise<{ ok?: string; error?: string }>;
   upload: (fd: FormData) => Promise<{ url?: string; error?: string }>;
+  saveTemplate: (name: string, design: Design, subject: string) => Promise<{ ok?: string; error?: string }>;
 };
 
 type State = { past: Design[]; present: Design; future: Design[] };
@@ -32,6 +33,7 @@ function reducer(s: State, a: Act): State {
 
 const PALETTE: { type: BlockType; icon: string }[] = [
   { type: "logo", icon: "🐸" },
+  { type: "hero", icon: "★" },
   { type: "heading", icon: "H" },
   { type: "text", icon: "¶" },
   { type: "image", icon: "🖼" },
@@ -176,6 +178,15 @@ export function EmailEditor({
       else setStatus({ kind: "error", text: r.error ?? "Preview failed" });
     });
 
+  const saveTemplate = () => {
+    const name = window.prompt("Template name", campaign.name);
+    if (!name) return;
+    start(async () => {
+      const r = await actions.saveTemplate(name, design, subject);
+      setStatus(r.ok ? { kind: "ok", text: r.ok } : { kind: "error", text: r.error ?? "Failed" });
+    });
+  };
+
   const test = () =>
     start(async () => {
       setStatus({ kind: "info", text: "Sending test…" });
@@ -200,6 +211,7 @@ export function EmailEditor({
             defaults={design.settings}
             upload={actions.upload}
             update={(patch) => api.update(loc.block.id, patch)}
+            sectionBg={!loc.parentId && loc.block.type !== "hero" ? (v) => api.update(loc.block.id, { sectionBg: v }) : undefined}
             columnCount={columnsParent ? (n) => setBlocks(updateBlock(design.blocks, columnsParent.id, (b) => ({ ...b, columns: resizeColumns(columnsParent, n) }) as typeof b)) : undefined}
           />
         </div>
@@ -242,6 +254,7 @@ export function EmailEditor({
           <button type="button" onClick={() => setMobile(true)} className={`px-2.5 py-1.5 text-sm ${mobile ? "bg-frog-700 text-white" : "bg-white"}`} title="Mobile" aria-pressed={mobile}>📱</button>
         </div>
         <button type="button" className="btn-secondary" onClick={() => openPreview(mobile ? 375 : 680)} disabled={pending}>Preview</button>
+        <button type="button" className="btn-secondary hidden md:inline-flex" onClick={saveTemplate} disabled={pending} title="Save this design to reuse later">Save as template</button>
         <button type="button" className="btn-secondary" onClick={test} disabled={pending}>Send test</button>
         <button type="button" className="btn-primary" onClick={() => void save()} disabled={pending}>
           {dirty ? "Save" : "Saved ✓"}

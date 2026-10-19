@@ -73,7 +73,7 @@ function ImageUpload({ onUploaded, upload }: { onUploaded: (url: string) => void
   );
 }
 
-export function BlockPanel({
+function BlockFields({
   block,
   update,
   upload,
@@ -81,6 +81,7 @@ export function BlockPanel({
   defaults,
 }: {
   defaults: DesignSettings;
+  sectionBg?: (v: string | undefined) => void;
   block: Any;
   update: (patch: Partial<Any>) => void;
   upload: (fd: FormData) => Promise<{ url?: string; error?: string }>;
@@ -164,6 +165,25 @@ export function BlockPanel({
           <AlignField value={block.align} onChange={(align) => u({ align })} />
         </>
       );
+    case "hero":
+      return (
+        <>
+          <Field label="Small label above (optional)"><input className="input" value={block.eyebrow ?? ""} placeholder="ROUND 4 · NOVEMBER" onChange={(e) => u({ eyebrow: e.target.value })} /></Field>
+          <Field label="Headline"><input className="input" value={block.heading} onChange={(e) => u({ heading: e.target.value })} /></Field>
+          <Field label="Text"><textarea className="input min-h-[80px]" value={block.text} onChange={(e) => u({ text: e.target.value })} /></Field>
+          <Field label="Button label" hint="Leave empty for no button."><input className="input" value={block.buttonLabel} onChange={(e) => u({ buttonLabel: e.target.value })} /></Field>
+          <Field label="Button link"><input className="input" value={block.buttonHref} placeholder="https://" onChange={(e) => u({ buttonHref: e.target.value })} /></Field>
+          <AlignField value={block.align} onChange={(align) => u({ align })} />
+          <ColorField label="Background" value={block.bg} onChange={(bg) => bg && u({ bg })} />
+          <ColorField label="Text colour" value={block.textColor} onChange={(textColor) => textColor && u({ textColor })} />
+          <ColorField label="Button colour" value={block.buttonBg} onChange={(buttonBg) => u({ buttonBg })} allowClear fallback="#FFFFFF" />
+          <ColorField label="Button text" value={block.buttonColor} onChange={(buttonColor) => u({ buttonColor })} allowClear fallback={defaults.buttonColor} />
+          <Field label="Background photo (optional)" hint="Shown behind the text in Apple Mail, Gmail and most phones; Outlook shows the colour instead. Pick a dark photo so the text stays readable.">
+            <ImageUpload upload={upload} onUploaded={(image) => u({ image })} />
+          </Field>
+          {block.image && <button type="button" className="text-xs text-danger underline" onClick={() => u({ image: undefined })}>Remove photo</button>}
+        </>
+      );
     case "html":
       return (
         <Field label="HTML" hint="For advanced users. Use tables and inline styles — email clients ignore most modern CSS.">
@@ -185,6 +205,19 @@ export function BlockPanel({
         </>
       );
   }
+}
+
+export function BlockPanel(props: Parameters<typeof BlockFields>[0]) {
+  return (
+    <>
+      <BlockFields {...props} />
+      {props.sectionBg && (
+        <div className="border-t border-line pt-4">
+          <ColorField label="Section background" value={props.block.sectionBg} onChange={props.sectionBg} allowClear fallback={props.defaults.contentBackground} />
+        </div>
+      )}
+    </>
+  );
 }
 
 export function SettingsPanel({ settings, update }: { settings: DesignSettings; update: (p: Partial<DesignSettings>) => void }) {

@@ -107,3 +107,18 @@ export async function uploadImage(formData: FormData) {
   if (error) return { error: error.message };
   return { url: db.storage.from("email-assets").getPublicUrl(path).data.publicUrl };
 }
+
+/** Save the current design as a reusable workspace template. */
+export async function saveAsTemplate(name: string, design: Design, subject: string) {
+  const { workspace } = await requireSession();
+  if (!isDesign(design)) return { error: "Invalid design" };
+  const clean = name.trim().slice(0, 120);
+  if (!clean) return { error: "Give the template a name." };
+  const html = await renderDesign(design, await brandOf(workspace.id));
+  const { error } = await admin()
+    .from("templates")
+    .insert({ workspace_id: workspace.id, name: clean, subject: subject.slice(0, 250), html, design });
+  if (error) return { error: error.message };
+  revalidatePath("/app/templates");
+  return { ok: `Saved “${clean}” to your templates.` };
+}

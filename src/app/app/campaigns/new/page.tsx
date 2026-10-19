@@ -1,24 +1,31 @@
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
-import { STARTER_TEMPLATES } from "@/lib/email/templates";
+import { brandFor, savedGallery, starterGallery } from "@/lib/email/gallery";
+import { TemplateThumb } from "@/components/template-thumb";
 import { ActionForm, Submit } from "@/components/action-form";
 import { createCampaign } from "../../actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "New campaign · Desk Frog Mail" };
 
-const ICON: Record<string, string> = { blank: "📄", newsletter: "📰", event: "🏁", results: "🏆", announcement: "📣" };
-
-export default async function NewCampaign() {
+export default async function NewCampaign({ searchParams }: { searchParams: Promise<{ template?: string }> }) {
   const { workspace, user } = await requireSession();
-  const { data: lists } = await admin().from("lists").select("id, name").eq("workspace_id", workspace.id).order("name");
+  const { template: preset } = await searchParams;
+  const brand = await brandFor(workspace.id);
+  const [{ data: lists }, starters, saved] = await Promise.all([
+    admin().from("lists").select("id, name").eq("workspace_id", workspace.id).order("name"),
+    starterGallery(brand),
+    savedGallery(workspace.id, brand),
+  ]);
+  const options = [...saved, ...starters];
+  const selected = options.some((o) => o.key === preset) ? preset : "starter:newsletter";
   const shared = !workspace.plan.custom_domain;
   let sharedFrom = "";
   try { sharedFrom = `${workspace.slug}@${env.sharedSendingDomain}`; } catch { /* not configured yet */ }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">New campaign</h1>
         <p className="text-muted">Set the basics, pick a starting point, then design it in the editor.</p>
@@ -57,15 +64,15 @@ export default async function NewCampaign() {
           </div>
         </div>
         <fieldset>
-          <legend className="label">Start from</legend>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {STARTER_TEMPLATES.map((t, i) => (
-              <label key={t.id} className="cursor-pointer">
-                <input type="radio" name="template" value={t.id} defaultChecked={i === 1} className="peer sr-only" />
-                <span className="block h-full rounded-xl border-2 border-line bg-white p-4 transition-colors peer-checked:border-frog-700 peer-checked:bg-frog-50 peer-focus-visible:ring-2 peer-focus-visible:ring-frog hover:border-frog">
-                  <span className="text-2xl" aria-hidden>{ICON[t.id]}</span>
-                  <span className="mt-1 block font-semibold">{t.name}</span>
-                  <span className="block text-xs text-muted">{t.description}</span>
+          <legend className="label">Start from <a href="/app/templates" className="ml-2 text-xs font-normal text-frog-700 underline">Browse all</a></legend>
+          <div className="grid max-h-[560px] grid-cols-2 gap-3 overflow-y-auto rounded-xl border border-line bg-soft p-3 sm:grid-cols-3">
+            {options.map((t) => (
+              <label key={t.key} className="cursor-pointer">
+                <input type="radio" name="template" value={t.key} defaultChecked={t.key === selected} className="peer sr-only" />
+                <span className="block h-full rounded-xl border-2 border-transparent bg-white p-2 transition-colors peer-checked:border-frog-700 peer-checked:bg-frog-50 peer-focus-visible:ring-2 peer-focus-visible:ring-frog hover:border-frog">
+                  <TemplateThumb html={t.previewHtml} title={t.name} />
+                  <span className="mt-2 block truncate text-sm font-semibold">{t.name}</span>
+                  <span className="block truncate text-xs text-muted">{t.category === "Yours" ? "Your template" : t.category}</span>
                 </span>
               </label>
             ))}

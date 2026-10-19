@@ -41,7 +41,7 @@ export default async function Settings() {
         </form>
       </section>
 
-      <section className="card p-6">
+      <section id="brand" className="card scroll-mt-6 p-6">
         <h2 className="font-semibold">Brand</h2>
         <p className="mt-1 text-sm text-muted">Set once — new emails start with your logo, colours and font.</p>
         <ActionForm action={saveBrand} className="mt-4 space-y-4">

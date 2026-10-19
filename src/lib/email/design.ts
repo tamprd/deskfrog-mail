@@ -32,7 +32,8 @@ export const FONTS: Record<string, { label: string; stack: string; href?: string
 export const SOCIAL_NETWORKS = ["facebook", "instagram", "x", "youtube", "linkedin", "web"] as const;
 export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
 
-type Base = { id: string };
+// sectionBg: optional background colour band behind a top-level block.
+type Base = { id: string; sectionBg?: string };
 export type HeadingBlock = Base & { type: "heading"; text: string; level: 1 | 2 | 3; align: Align; color?: string };
 export type TextBlock = Base & { type: "text"; html: string; align: Align };
 export type ImageBlock = Base & { type: "image"; src: string; alt: string; href?: string; width: number; align: Align; rounded?: boolean };
@@ -42,11 +43,26 @@ export type SpacerBlock = Base & { type: "spacer"; height: number };
 export type LogoBlock = Base & { type: "logo"; align: Align; width: number };
 export type SocialBlock = Base & { type: "social"; align: Align; links: { network: SocialNetwork; url: string }[] };
 export type HtmlBlock = Base & { type: "html"; html: string };
+/** Coloured banner with eyebrow, headline, text and a button. Optional background photo. */
+export type HeroBlock = Base & {
+  type: "hero";
+  eyebrow?: string;
+  heading: string;
+  text: string;
+  buttonLabel: string;
+  buttonHref: string;
+  bg: string;
+  textColor: string;
+  buttonBg?: string;
+  buttonColor?: string;
+  image?: string;
+  align: Align;
+};
 
 export type ChildBlock = HeadingBlock | TextBlock | ImageBlock | ButtonBlock | DividerBlock | SpacerBlock;
 export type ColumnsBlock = Base & { type: "columns"; columns: ChildBlock[][]; stackOnMobile: boolean };
 
-export type Block = ChildBlock | LogoBlock | SocialBlock | HtmlBlock | ColumnsBlock;
+export type Block = ChildBlock | LogoBlock | SocialBlock | HtmlBlock | ColumnsBlock | HeroBlock;
 export type BlockType = Block["type"];
 
 export type DesignSettings = {
@@ -90,6 +106,7 @@ export function newBlock(type: BlockType): Block {
     case "logo": return { id, type, align: "center", width: 140 };
     case "social": return { id, type, align: "center", links: [{ network: "facebook", url: "https://facebook.com/" }, { network: "instagram", url: "https://instagram.com/" }] };
     case "html": return { id, type, html: "<p style=\"margin:0\">Custom HTML</p>" };
+    case "hero": return { id, type, eyebrow: "", heading: "Big headline goes here", text: "One or two lines that make people want to read on.", buttonLabel: "Find out more", buttonHref: "https://", bg: "#0F5132", textColor: "#FFFFFF", buttonBg: "#FFFFFF", buttonColor: "#0F5132", align: "center" };
     case "columns": return {
       id, type, stackOnMobile: true,
       columns: [
@@ -101,6 +118,7 @@ export function newBlock(type: BlockType): Block {
 }
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
+  hero: "Hero",
   logo: "Logo",
   heading: "Heading",
   text: "Text",

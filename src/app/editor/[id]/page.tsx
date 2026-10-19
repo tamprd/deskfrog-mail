@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { emptyDesign, isDesign, type Brand, type Design } from "@/lib/email/design";
 import { EmailEditor } from "@/components/editor/email-editor";
-import { previewDesign, saveDesign, sendTest, uploadImage } from "./actions";
+import { previewDesign, saveAsTemplate, saveDesign, sendTest, uploadImage } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Design email · Desk Frog Mail" };
@@ -40,7 +40,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
       initial={design}
       brand={brand}
       campaign={{ id: c.id, name: c.name, subject: c.subject, fromName: c.from_name }}
-      actions={{ save, preview: previewDesign, sendTest: test, upload: uploadImage }}
+      actions={{ save, preview: previewDesign, sendTest: test, upload: uploadImage, saveTemplate: saveAsTemplate }}
     />
   );
 }

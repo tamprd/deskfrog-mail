@@ -8,7 +8,7 @@ import { ApiError, generateApiKey } from "@/lib/api";
 import { enqueueCampaign } from "@/lib/campaigns";
 import { assertContactCapacity } from "@/lib/workspace";
 import { newWebhookSecret, WEBHOOK_EVENTS } from "@/lib/webhooks";
-import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
+import { DEFAULT_BRAND, FONTS, isDesign, type Brand, type Design } from "@/lib/email/design";
 import { renderDesign } from "@/lib/email/render";
 import { getStarter } from "@/lib/email/templates";
 
@@ -101,7 +101,24 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
   const f = (k: string) => String(formData.get(k) ?? "").trim();
   const { data: ws } = await admin().from("workspaces").select("brand").eq("id", workspace.id).single();
   const brand = (ws?.brand ?? {}) as Partial<Brand>;
-  const design = getStarter(f("template") || "blank").build(brand);
+  // template is "starter:<id>", "saved:<uuid>", or a bare starter id
+  const choice = f("template") || "starter:blank";
+  let design: Design = getStarter(choice.replace(/^starter:/, "")).build(brand);
+  let html: string | null = null;
+  if (choice.startsWith("saved:")) {
+    const { data: t } = await admin()
+      .from("templates")
+      .select("design, html")
+      .eq("id", choice.slice(6))
+      .eq("workspace_id", workspace.id)
+      .maybeSingle();
+    if (!t) return { error: "That template no longer exists." };
+    if (isDesign(t.design)) design = t.design;
+    else {
+      design = { ...design, blocks: [{ id: "legacy", type: "html", html: t.html }] };
+      html = t.html;
+    }
+  }
   const row = {
     workspace_id: workspace.id,
     name: f("name"),
@@ -111,7 +128,7 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
     list_id: f("list_id") || null,
     tag_filter: f("tags").split(",").map((t) => t.trim()).filter(Boolean),
     design,
-    html: await renderDesign(design, brand),
+    html: html ?? (await renderDesign(design, brand)),
   };
   if (!row.name || !row.subject || !row.from_name || !row.from_email) return { error: "Fill in every field." };
   const { data, error } = await admin().from("campaigns").insert(row).select("id").single();
@@ -132,6 +149,12 @@ export async function duplicateCampaign(formData: FormData) {
   if (!c) return;
   const { data } = await db.from("campaigns").insert({ ...c, name: `${c.name} (copy)`, workspace_id: workspace.id }).select("id").single();
   if (data) redirect(`/editor/${data.id}`);
+}
+
+export async function deleteTemplate(formData: FormData) {
+  const { workspace } = await requireSession();
+  await admin().from("templates").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
+  revalidatePath("/app/templates");
 }
 
 // ── Brand kit ────────────────────────────────────────────
