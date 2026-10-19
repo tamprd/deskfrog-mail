@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* Desk Frog Mail brand tokens.
+   Frog Green #22C55E is for fills/accents only — white text on it fails contrast.
+   Buttons with white text use frog-700 (#15803D, 5:1) or forest (#0F5132). */
+@theme {
+  --color-frog: #22c55e;
+  --color-frog-50: #f0fdf4;
+  --color-frog-100: #dcfce7;
+  --color-frog-200: #bbf7d0;
+  --color-frog-700: #15803d;
+  --color-forest: #0f5132;
+  --color-teal: #14b8a6;
+  --color-teal-700: #0f766e;
+  --color-ink: #1f2937;
+  --color-muted: #6b7280;
+  --color-line: #e5e7eb;
+  --color-soft: #f8faf7;
+  --color-danger: #b91c1c;
+  --color-warn: #b45309;
+
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgb(15 81 50 / 0.04), 0 4px 16px rgb(15 81 50 / 0.06);
+  --radius-xl: 14px;
+}
+
+html, body { background: var(--color-soft); color: var(--color-ink); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+@utility card { @apply rounded-xl bg-white shadow-card border border-line/60; }
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility btn-primary { @apply btn bg-frog-700 text-white hover:bg-forest; }
+@utility btn-secondary { @apply btn border border-line bg-white text-ink hover:bg-frog-50; }
+@utility btn-danger { @apply btn border border-red-200 bg-white text-danger hover:bg-red-50; }
+@utility input { @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-frog/40 focus:border-frog; }
+@utility label { @apply block text-sm font-medium text-ink mb-1; }
+@utility pill { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium; }
+@utility th { @apply px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted; }
+@utility td { @apply px-4 py-3 text-sm border-t border-line; }
