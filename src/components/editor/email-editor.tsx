@@ -6,6 +6,7 @@ import { addToColumn, duplicateBlock, findBlock, insertBlock, moveBlock, removeB
 import { Canvas, type CanvasApi } from "./canvas";
 import { BlockPanel, SettingsPanel, resizeColumns } from "./panel";
 import { AiPanel, type AiActions } from "./ai-panel";
+import { HtmlModal } from "./html-modal";
 
 type Actions = {
   save: (design: Design, meta: { subject?: string }) => Promise<{ ok?: boolean; error?: string; savedAt?: string }>;
@@ -71,6 +72,7 @@ export function EmailEditor({
   const [mobile, setMobile] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [htmlEditing, setHtmlEditing] = useState<string | null>(null);
   const lastTyped = useRef<string | null>(null);
 
   const set = useCallback((d: Design, mergeKey?: string) => {
@@ -102,6 +104,10 @@ export function EmailEditor({
         const child = newBlock(type) as ChildBlock;
         setBlocks(addToColumn(design.blocks, columnsId, col, child));
         setSelected(child.id);
+      },
+      openHtml: (id) => {
+        setSelected(id);
+        setHtmlEditing(id);
       },
     }),
     [design.blocks, selected, setBlocks],
@@ -151,6 +157,7 @@ export function EmailEditor({
   // Keyboard: undo/redo, delete, escape.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      if (htmlEditing) return; // the code editor handles its own keys
       const typing = (e.target as HTMLElement)?.closest("input, textarea, select, [contenteditable=true]");
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "s") {
@@ -173,7 +180,7 @@ export function EmailEditor({
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [api, save, selected]);
+  }, [api, save, selected, htmlEditing]);
 
   const openPreview = (width: number) =>
     start(async () => {
@@ -225,6 +232,7 @@ export function EmailEditor({
           </div>
           {loc.parentId && <p className="text-xs text-muted">Inside column {loc.col + 1}</p>}
           <BlockPanel
+            openHtml={api.openHtml}
             block={loc.block}
             defaults={design.settings}
             upload={actions.upload}
@@ -327,6 +335,19 @@ export function EmailEditor({
           <button type="button" onClick={() => setSheet(true)} className="btn-secondary fixed bottom-4 right-4 z-40 shadow-card">⚙ Email settings</button>
         )}
       </div>
+
+      {htmlEditing && (() => {
+        const target = findBlock(design.blocks, htmlEditing)?.block;
+        if (!target || target.type !== "html") return null;
+        return (
+          <HtmlModal
+            initial={target.html}
+            settings={design.settings}
+            onApply={(code) => setBlocks(updateBlock(design.blocks, target.id, (b) => ({ ...b, html: code }) as typeof b))}
+            onClose={() => setHtmlEditing(null)}
+          />
+        );
+      })()}
 
       {preview && (
         <div className="fixed inset-0 z-50 flex flex-col bg-ink/60 p-4" role="dialog" aria-modal aria-label="Email preview" onClick={() => setPreview(null)}>

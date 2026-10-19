@@ -79,7 +79,9 @@ function BlockFields({
   upload,
   columnCount,
   defaults,
+  openHtml,
 }: {
+  openHtml?: (id: string) => void;
   defaults: DesignSettings;
   sectionBg?: (v: string | undefined) => void;
   block: Any;
@@ -186,9 +188,13 @@ function BlockFields({
       );
     case "html":
       return (
-        <Field label="HTML" hint="For advanced users. Use tables and inline styles — email clients ignore most modern CSS.">
-          <textarea className="input min-h-[240px] font-mono text-xs" value={block.html} onChange={(e) => u({ html: e.target.value })} />
-        </Field>
+        <>
+          <button type="button" className="btn-primary w-full" onClick={() => openHtml?.(block.id)}>{"</>"} Open code editor</button>
+          <p className="text-xs text-muted">
+            {block.html.split("\n").length} lines · {block.html.length.toLocaleString("en-AU")} chars. Full-screen editor with syntax highlighting and a live preview. You can also double-click the block on the canvas.
+          </p>
+          <p className="text-[11px] text-muted">Use tables and inline styles — email clients ignore most modern CSS.</p>
+        </>
       );
     case "columns":
       return (

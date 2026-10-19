@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 /* eslint-disable @next/next/no-img-element */
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -15,7 +16,29 @@ export type CanvasApi = {
   duplicate: (id: string) => void;
   remove: (id: string) => void;
   addChild: (columnsId: string, col: number, type: ChildBlock["type"]) => void;
+  openHtml: (id: string) => void;
 };
+
+/** Renders a raw HTML block as it will look, sized to its content. Scripts can't run (sandboxed). */
+function HtmlPreview({ html, d }: { html: string; d: Design }) {
+  const [h, setH] = useState(60);
+  const font = FONTS[d.settings.font] ?? FONTS.inter;
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent;overflow:hidden}body{font-family:${font.stack};color:${d.settings.textColor};font-size:16px;line-height:1.6}a{color:${d.settings.linkColor}}img{max-width:100%}</style></head><body>${html}</body></html>`;
+  return (
+    <iframe
+      title="Custom HTML"
+      sandbox="allow-same-origin"
+      srcDoc={doc}
+      tabIndex={-1}
+      className="pointer-events-none block w-full border-0"
+      style={{ height: h }}
+      onLoad={(e) => {
+        const body = e.currentTarget.contentDocument?.documentElement;
+        if (body) setH(Math.max(24, Math.min(3000, body.scrollHeight)));
+      }}
+    />
+  );
+}
 
 const HEADING_SIZE = { 1: 32, 2: 24, 3: 20 } as const;
 const justify = { left: "flex-start", center: "center", right: "flex-end" } as const;
@@ -145,10 +168,12 @@ function BlockView({ b, d, api, brand }: { b: Block; d: Design; api: CanvasApi; 
       );
     case "html":
       return (
-        <div style={{ padding: "8px 24px" }}>
-          <div className="rounded border border-dashed border-line bg-soft p-3 font-mono text-xs text-muted">
-            {"</>"} Custom HTML · {b.html.length} chars <span className="text-[11px]">(shown in Preview)</span>
-          </div>
+        <div style={{ padding: "8px 24px" }} onDoubleClick={() => api.openHtml(b.id)} title="Double-click to edit HTML">
+          {b.html.trim() ? (
+            <HtmlPreview html={b.html} d={d} />
+          ) : (
+            <div className="rounded border border-dashed border-line bg-soft p-3 font-mono text-xs text-muted">{"</>"} Empty HTML block — double-click to add code</div>
+          )}
         </div>
       );
     case "columns":
