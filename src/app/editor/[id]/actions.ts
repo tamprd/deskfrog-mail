@@ -9,6 +9,7 @@ import { renderDesign } from "@/lib/email/render";
 import { footerHtml, footerText, htmlToText, merge, withFooter } from "@/lib/render";
 import { sendEmail } from "@/lib/ses";
 import { remainingSends, resolveFrom } from "@/lib/workspace";
+import { aiUsage, withCredit } from "@/lib/ai/credits";
 
 async function brandOf(workspaceId: string): Promise<Partial<Brand>> {
   const { data } = await admin().from("workspaces").select("brand").eq("id", workspaceId).single();
@@ -121,4 +122,33 @@ export async function saveAsTemplate(name: string, design: Design, subject: stri
   if (error) return { error: error.message };
   revalidatePath("/app/templates");
   return { ok: `Saved “${clean}” to your templates.` };
+}
+
+// ── AI ───────────────────────────────────────────────────
+
+/** Rewrite the email's copy (or one block's) from an instruction. Returns the new design; the client keeps undo. */
+export async function aiRewrite(design: Design, instruction: string, onlyBlockId: string | null) {
+  const { workspace } = await requireSession();
+  if (!isDesign(design)) return { error: "Invalid design" };
+  const ask = instruction.trim().slice(0, 1000);
+  if (!ask) return { error: "Tell the AI what to change." };
+  try {
+    const { rewriteDesign } = await import("@/lib/ai/claude");
+    const r = await withCredit(workspace.id, workspace.plan.id, () => rewriteDesign(design, ask, onlyBlockId));
+    return { design: r.design, applied: r.applied, usage: await aiUsage(workspace.id, workspace.plan.id) };
+  } catch (e) {
+    return { error: (e as Error).message || "The AI couldn't do that. Try again." };
+  }
+}
+
+export async function aiSubjects(design: Design, current: string) {
+  const { workspace } = await requireSession();
+  if (!isDesign(design)) return { error: "Invalid design" };
+  try {
+    const { subjectIdeas } = await import("@/lib/ai/claude");
+    const ideas = await withCredit(workspace.id, workspace.plan.id, () => subjectIdeas(design, current));
+    return { ideas, usage: await aiUsage(workspace.id, workspace.plan.id) };
+  } catch (e) {
+    return { error: (e as Error).message || "The AI couldn't do that. Try again." };
+  }
 }

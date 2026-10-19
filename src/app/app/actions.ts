@@ -119,10 +119,28 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
       html = t.html;
     }
   }
+  // ✨ AI: write the whole email from a brief (overrides the template choice).
+  const brief = f("ai_brief").slice(0, 3000);
+  let subject = f("subject");
+  if (!f("name") || !f("from_name") || !f("from_email")) return { error: "Fill in the campaign name and sender details." };
+  if (brief) {
+    try {
+      const { generateDesign } = await import("@/lib/ai/claude");
+      const { withCredit } = await import("@/lib/ai/credits");
+      const ai = await withCredit(workspace.id, workspace.plan.id, () =>
+        generateDesign({ brief, tone: f("ai_tone") || "friendly", senderName: f("from_name"), brand }),
+      );
+      design = ai.design;
+      html = null;
+      if (!subject) subject = ai.subject;
+    } catch (e) {
+      return { error: (e as Error).message || "The AI couldn't write that email. Try again." };
+    }
+  }
   const row = {
     workspace_id: workspace.id,
     name: f("name"),
-    subject: f("subject"),
+    subject,
     from_name: f("from_name"),
     from_email: f("from_email").toLowerCase(),
     list_id: f("list_id") || null,
@@ -130,7 +148,7 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
     design,
     html: html ?? (await renderDesign(design, brand)),
   };
-  if (!row.name || !row.subject || !row.from_name || !row.from_email) return { error: "Fill in every field." };
+  if (!row.subject) return { error: "Add a subject line (or describe the email for AI to write one)." };
   const { data, error } = await admin().from("campaigns").insert(row).select("id").single();
   if (error) return { error: error.message };
   redirect(`/editor/${data.id}`);

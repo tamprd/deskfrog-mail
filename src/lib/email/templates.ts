@@ -18,8 +18,8 @@ const design = (brand: Partial<Brand>, blocks: Block[], preheader = ""): Design 
   blocks,
 });
 
-const primary = (b: Partial<Brand>) => b.primary ?? DEFAULT_BRAND.primary;
-const tint = (b: Partial<Brand>) => mix(primary(b), "#FFFFFF", 0.9); // pale band of the brand colour
+export const primary = (b: Partial<Brand>) => b.primary ?? DEFAULT_BRAND.primary;
+export const tint = (b: Partial<Brand>) => mix(primary(b), "#FFFFFF", 0.9); // pale band of the brand colour
 
 /** Blend two hex colours (t = share of `b`). */
 function mix(a: string, b: string, t: number) {

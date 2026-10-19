@@ -103,6 +103,14 @@ Verify `DeskFrog-Signature: t=<unix>,v1=<hex>`, where `v1 = HMAC_SHA256(secret, 
 - Autosave, undo/redo, preview on desktop and mobile, and send test
 - The API accepts the same `design` JSON on `POST /campaigns` and `PATCH /campaigns/:id`
 
+## AI (Claude)
+
+Set `ANTHROPIC_API_KEY` in Vercel. Code is in `src/lib/ai/`.
+- **Write with AI** (New campaign): describe the email → Claude Sonnet 5.5 returns a schema-constrained block layout → converted to an on-brand editor design.
+- **AI panel in the editor** (✨ AI): rewrite the whole email or the selected block (shorter, friendlier, urgent, fix grammar, or a custom instruction), and suggest 5 subject lines with preview text. Uses Claude Haiku 5.5. Edits only touch copy, never layout, images or links, and can be undone.
+- AI output is sanitised (allow-listed tags, safe links only) before it reaches a design.
+- **Credits**: each request uses one. Monthly limits per plan are in `src/lib/ai/credits.ts` (Free 10 / Starter 100 / Growth 300 / Pro 1000). Credits are refunded if a call fails.
+
 ## Not built yet
 - Stripe billing / plan upgrades (the plan is changed in the DB for now)
 - Double opt-in signup forms and automations

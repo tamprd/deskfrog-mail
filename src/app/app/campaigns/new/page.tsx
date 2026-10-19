@@ -3,11 +3,14 @@ import { admin } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { brandFor, savedGallery, starterGallery } from "@/lib/email/gallery";
 import { TemplateThumb } from "@/components/template-thumb";
+import { aiUsage } from "@/lib/ai/credits";
 import { ActionForm, Submit } from "@/components/action-form";
 import { createCampaign } from "../../actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "New campaign · Desk Frog Mail" };
+
+export const maxDuration = 60; // AI writing can take a while
 
 export default async function NewCampaign({ searchParams }: { searchParams: Promise<{ template?: string }> }) {
   const { workspace, user } = await requireSession();
@@ -19,6 +22,7 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
     savedGallery(workspace.id, brand),
   ]);
   const options = [...saved, ...starters];
+  const ai = await aiUsage(workspace.id, workspace.plan.id);
   const selected = options.some((o) => o.key === preset) ? preset : "starter:newsletter";
   const shared = !workspace.plan.custom_domain;
   let sharedFrom = "";
@@ -36,8 +40,8 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
           <input className="input" id="name" name="name" required placeholder="Round 4 entries open" />
         </div>
         <div>
-          <label className="label" htmlFor="subject">Subject line</label>
-          <input className="input" id="subject" name="subject" required placeholder="Entries are open, {{first_name|racer}} 🏁" />
+          <label className="label" htmlFor="subject">Subject line <span className="font-normal text-muted">(AI can write this)</span></label>
+          <input className="input" id="subject" name="subject" placeholder="Entries are open, {{first_name|racer}} 🏁" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -63,6 +67,31 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
             <input className="input" id="tags" name="tags" placeholder="competitor, 2026-season" />
           </div>
         </div>
+        <div className="rounded-xl border border-frog-200 bg-frog-50 p-4">
+          <label className="label flex items-center justify-between" htmlFor="ai_brief">
+            <span>✨ Let AI write it <span className="font-normal text-muted">(optional)</span></span>
+            <span className="text-xs font-normal text-muted">{ai.limit - ai.used} of {ai.limit} AI credits left this month</span>
+          </label>
+          <textarea
+            id="ai_brief"
+            name="ai_brief"
+            rows={4}
+            maxLength={3000}
+            className="input bg-white"
+            placeholder={"e.g. Entries open for Round 4 of Budget Enduro at Queensland Raceway on Sat 14 November. $450 per car, 6-hour race, gates 6:30am. Grids are limited — push people to enter early."}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label className="text-xs text-muted" htmlFor="ai_tone">Tone</label>
+            <select id="ai_tone" name="ai_tone" className="input w-auto bg-white py-1 text-xs" defaultValue="friendly">
+              <option value="friendly">Friendly</option>
+              <option value="excited, high energy">Excited</option>
+              <option value="professional">Professional</option>
+              <option value="short and to the point">Short &amp; sharp</option>
+              <option value="laid-back Aussie">Laid-back Aussie</option>
+            </select>
+            <span className="text-xs text-muted">Filled in? The AI designs the whole email and the template below is ignored. Takes about 20 seconds.</span>
+          </div>
+        </div>
         <fieldset>
           <legend className="label">Start from <a href="/app/templates" className="ml-2 text-xs font-normal text-frog-700 underline">Browse all</a></legend>
           <div className="grid max-h-[560px] grid-cols-2 gap-3 overflow-y-auto rounded-xl border border-line bg-soft p-3 sm:grid-cols-3">
@@ -78,7 +107,7 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
             ))}
           </div>
         </fieldset>
-        <Submit pending="Creating…">Continue to design →</Submit>
+        <Submit pending="Creating… (AI emails take ~20s)">Continue to design →</Submit>
       </ActionForm>
     </div>
   );

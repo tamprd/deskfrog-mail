@@ -5,6 +5,7 @@ import { BLOCK_LABELS, newBlock, type Block, type BlockType, type Brand, type Ch
 import { addToColumn, duplicateBlock, findBlock, insertBlock, moveBlock, removeBlock, updateBlock } from "@/lib/email/tree";
 import { Canvas, type CanvasApi } from "./canvas";
 import { BlockPanel, SettingsPanel, resizeColumns } from "./panel";
+import { AiPanel, type AiActions } from "./ai-panel";
 
 type Actions = {
   save: (design: Design, meta: { subject?: string }) => Promise<{ ok?: boolean; error?: string; savedAt?: string }>;
@@ -12,7 +13,7 @@ type Actions = {
   sendTest: (design: Design, subject: string) => Promise<{ ok?: string; error?: string }>;
   upload: (fd: FormData) => Promise<{ url?: string; error?: string }>;
   saveTemplate: (name: string, design: Design, subject: string) => Promise<{ ok?: string; error?: string }>;
-};
+} & AiActions;
 
 type State = { past: Design[]; present: Design; future: Design[] };
 type Act = { type: "set"; design: Design; merge?: boolean } | { type: "undo" } | { type: "redo" };
@@ -50,7 +51,9 @@ export function EmailEditor({
   brand,
   campaign,
   actions,
+  aiUsage,
 }: {
+  aiUsage: { used: number; limit: number };
   initial: Design;
   brand: Partial<Brand>;
   campaign: { id: string; name: string; subject: string; fromName: string };
@@ -67,6 +70,7 @@ export function EmailEditor({
   const [pending, start] = useTransition();
   const [mobile, setMobile] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const lastTyped = useRef<string | null>(null);
 
   const set = useCallback((d: Design, mergeKey?: string) => {
@@ -197,7 +201,21 @@ export function EmailEditor({
   const loc = findBlock(design.blocks, selected);
   const columnsParent = loc?.block.type === "columns" ? loc.block : null;
 
-  const panel = (
+  const panel = aiOpen ? (
+    <AiPanel
+      design={design}
+      subject={subject}
+      selected={loc ? { id: loc.block.id, label: BLOCK_LABELS[loc.block.type] } : null}
+      usage={aiUsage}
+      actions={actions}
+      onDesign={(d) => set(d)}
+      onSubject={(sub, pre) => {
+        setSubject(sub);
+        set({ ...design, settings: { ...design.settings, preheader: pre } });
+      }}
+      onClose={() => { setAiOpen(false); setSheet(false); }}
+    />
+  ) : (
     <>
           {loc ? (
         <div className="space-y-4">
@@ -254,6 +272,7 @@ export function EmailEditor({
           <button type="button" onClick={() => setMobile(true)} className={`px-2.5 py-1.5 text-sm ${mobile ? "bg-frog-700 text-white" : "bg-white"}`} title="Mobile" aria-pressed={mobile}>📱</button>
         </div>
         <button type="button" className="btn-secondary" onClick={() => openPreview(mobile ? 375 : 680)} disabled={pending}>Preview</button>
+        <button type="button" className={`btn-secondary ${aiOpen ? "bg-frog-50 border-frog" : ""}`} onClick={() => { setAiOpen((o) => !o); setSheet(true); }} aria-pressed={aiOpen}>✨ AI</button>
         <button type="button" className="btn-secondary hidden md:inline-flex" onClick={saveTemplate} disabled={pending} title="Save this design to reuse later">Save as template</button>
         <button type="button" className="btn-secondary" onClick={test} disabled={pending}>Send test</button>
         <button type="button" className="btn-primary" onClick={() => void save()} disabled={pending}>
@@ -299,7 +318,7 @@ export function EmailEditor({
 
       {/* Small screens: properties as a bottom sheet */}
       <div className="lg:hidden">
-        {loc || sheet ? (
+        {loc || sheet || aiOpen ? (
           <div className="fixed inset-x-0 bottom-0 z-40 max-h-[55dvh] overflow-y-auto rounded-t-2xl border-t border-line bg-white p-4 pt-10 shadow-[0_-8px_24px_rgb(0_0_0/0.12)]" role="dialog" aria-label="Properties">
             <button type="button" onClick={() => { setSelected(null); setSheet(false); }} className="absolute right-3 top-3 text-sm text-muted" aria-label="Close properties">✕</button>
             {panel}

@@ -3,9 +3,11 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { emptyDesign, isDesign, type Brand, type Design } from "@/lib/email/design";
 import { EmailEditor } from "@/components/editor/email-editor";
-import { previewDesign, saveAsTemplate, saveDesign, sendTest, uploadImage } from "./actions";
+import { aiRewrite, aiSubjects, previewDesign, saveAsTemplate, saveDesign, sendTest, uploadImage } from "./actions";
+import { aiUsage } from "@/lib/ai/credits";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // AI actions
 export const metadata = { title: "Design email · Desk Frog Mail" };
 
 export default async function EditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +42,8 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
       initial={design}
       brand={brand}
       campaign={{ id: c.id, name: c.name, subject: c.subject, fromName: c.from_name }}
-      actions={{ save, preview: previewDesign, sendTest: test, upload: uploadImage, saveTemplate: saveAsTemplate }}
+      actions={{ save, preview: previewDesign, sendTest: test, upload: uploadImage, saveTemplate: saveAsTemplate, aiRewrite, aiSubjects }}
+      aiUsage={await aiUsage(workspace.id, workspace.plan.id)}
     />
   );
 }
