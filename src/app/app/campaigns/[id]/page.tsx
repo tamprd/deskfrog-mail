@@ -6,7 +6,7 @@ import { footerHtml, merge, withFooter } from "@/lib/render";
 import { remainingSends } from "@/lib/workspace";
 import { ActionForm, Submit } from "@/components/action-form";
 import { StatusPill } from "@/components/status";
-import { deleteDraft, sendCampaign } from "../../actions";
+import { deleteDraft, duplicateCampaign, sendCampaign } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -88,8 +88,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           <iframe title="Email preview" srcDoc={preview} sandbox="" className="h-[560px] w-full bg-white" />
         </section>
 
-        {draft && (
+        {draft ? (
           <aside className="space-y-4">
+            <Link href={`/editor/${c.id}`} className="btn-primary w-full">✏️ Edit design</Link>
             <ActionForm action={sendCampaign} className="card p-5">
               <input type="hidden" name="id" value={c.id} />
               <h2 className="font-semibold">Ready to send?</h2>
@@ -98,11 +99,18 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                 You can send <strong className="text-ink">{remaining.toLocaleString("en-AU")}</strong> more today on your plan.
               </p>
               {audience > remaining && <p className="mt-2 text-sm text-warn">This is over your remaining allowance — the send will be refused.</p>}
-              <Submit className="btn-primary mt-4 w-full" pending="Queuing…">Send now</Submit>
+              <Submit className="btn-secondary mt-4 w-full" pending="Queuing…">Send now</Submit>
             </ActionForm>
             <form action={deleteDraft}>
               <input type="hidden" name="id" value={c.id} />
               <button className="btn-danger w-full">Delete draft</button>
+            </form>
+          </aside>
+        ) : (
+          <aside>
+            <form action={duplicateCampaign}>
+              <input type="hidden" name="id" value={c.id} />
+              <button className="btn-secondary w-full">Duplicate as new draft</button>
             </form>
           </aside>
         )}

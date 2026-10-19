@@ -2,7 +2,8 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { ActionForm, Submit } from "@/components/action-form";
-import { createApiKey, createWebhook, deleteWebhook, revokeApiKey, updateWorkspace } from "../actions";
+import { createApiKey, createWebhook, deleteWebhook, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
+import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings · Desk Frog Mail" };
@@ -17,6 +18,8 @@ export default async function Settings() {
     db.from("webhook_endpoints").select("id, url, events, active").eq("workspace_id", workspace.id),
     db.from("sending_domains").select("id, domain, status, dns_records").eq("workspace_id", workspace.id),
   ]);
+  const { data: wsRow } = await db.from("workspaces").select("brand").eq("id", workspace.id).single();
+  const brand = { ...DEFAULT_BRAND, ...((wsRow?.brand ?? {}) as Partial<Brand>) };
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -36,6 +39,48 @@ export default async function Settings() {
           </div>
           <button className="btn-secondary">Save</button>
         </form>
+      </section>
+
+      <section className="card p-6">
+        <h2 className="font-semibold">Brand</h2>
+        <p className="mt-1 text-sm text-muted">Set once — new emails start with your logo, colours and font.</p>
+        <ActionForm action={saveBrand} className="mt-4 space-y-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="grid h-20 w-40 place-items-center rounded-lg border border-line bg-soft p-2">
+              {brand.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={brand.logoUrl} alt="Current logo" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-xs text-muted">No logo yet</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="label" htmlFor="logo">Logo</label>
+              <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="text-sm" />
+              {brand.logoUrl && <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="remove_logo" className="accent-frog-700" /> Remove logo</label>}
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {([
+              ["primary", "Buttons & links", brand.primary],
+              ["text", "Text", brand.text],
+              ["background", "Background", brand.background],
+              ["content", "Email body", brand.content],
+            ] as const).map(([name, label, value]) => (
+              <div key={name}>
+                <label className="label" htmlFor={`brand-${name}`}>{label}</label>
+                <input id={`brand-${name}`} name={name} type="color" defaultValue={value} className="h-10 w-full cursor-pointer rounded-lg border border-line bg-white p-1" />
+              </div>
+            ))}
+          </div>
+          <div>
+            <label className="label" htmlFor="font">Font</label>
+            <select id="font" name="font" defaultValue={brand.font} className="input">
+              {Object.entries(FONTS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+            </select>
+          </div>
+          <Submit className="btn-secondary" pending="Saving…">Save brand</Submit>
+        </ActionForm>
       </section>
 
       <section className="card p-6">

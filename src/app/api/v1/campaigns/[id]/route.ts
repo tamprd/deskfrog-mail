@@ -1,6 +1,8 @@
 import { ApiError, body, dbError, ok, route } from "@/lib/api";
 import { admin } from "@/lib/supabase/admin";
 import { campaignInput } from "@/lib/schemas";
+import { isDesign, type Brand } from "@/lib/email/design";
+import { renderDesign } from "@/lib/email/render";
 
 export const runtime = "nodejs";
 type P = { id: string };
@@ -17,9 +19,17 @@ export const PATCH = route<P>(async (req, { workspaceId }, { id }) => {
   const current = await load(workspaceId, id);
   if (current.status !== "draft") throw new ApiError(409, "invalid_state", `Only drafts can be edited (campaign is ${current.status})`);
   const input = await body(req, campaignInput.partial());
+  const patch: Record<string, unknown> = { ...input };
+  if (input.design) {
+    if (!isDesign(input.design)) throw new ApiError(422, "invalid_design", "design must be a Desk Frog Mail design (version 1)");
+    const { data: ws } = await admin().from("workspaces").select("brand").eq("id", workspaceId).single();
+    patch.html = await renderDesign(input.design, (ws?.brand ?? {}) as Partial<Brand>);
+  } else if (input.html) {
+    patch.design = null; // raw HTML replaces any block design
+  }
   const { data, error } = await admin()
     .from("campaigns")
-    .update(input)
+    .update(patch)
     .eq("id", id)
     .eq("workspace_id", workspaceId)
     .select()

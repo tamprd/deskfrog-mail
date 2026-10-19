@@ -1,6 +1,8 @@
 import { ApiError, body, dbError, ok, pagination, route } from "@/lib/api";
 import { admin } from "@/lib/supabase/admin";
 import { campaignInput } from "@/lib/schemas";
+import { isDesign, type Brand, type Design } from "@/lib/email/design";
+import { renderDesign } from "@/lib/email/render";
 
 export const runtime = "nodejs";
 
@@ -39,7 +41,14 @@ export const POST = route(async (req, { workspaceId }) => {
     html ??= t.html;
     text ??= t.text;
   }
-  if (!html) throw new ApiError(422, "invalid_request", "Provide html or template_id");
+  let design: Design | null = null;
+  if (input.design) {
+    if (!isDesign(input.design)) throw new ApiError(422, "invalid_design", "design must be a Desk Frog Mail design (version 1)");
+    design = input.design;
+    const { data: ws } = await db.from("workspaces").select("brand").eq("id", workspaceId).single();
+    html = await renderDesign(design, (ws?.brand ?? {}) as Partial<Brand>);
+  }
+  if (!html) throw new ApiError(422, "invalid_request", "Provide html, design or template_id");
 
   if (input.list_id) {
     const { data: l } = await db.from("lists").select("id").eq("workspace_id", workspaceId).eq("id", input.list_id).maybeSingle();
@@ -48,7 +57,7 @@ export const POST = route(async (req, { workspaceId }) => {
 
   const { data, error } = await db
     .from("campaigns")
-    .insert({ ...input, html, text, tag_filter: input.tag_filter ?? [], workspace_id: workspaceId })
+    .insert({ ...input, html, text, design, tag_filter: input.tag_filter ?? [], workspace_id: workspaceId })
     .select(COLUMNS)
     .single();
   dbError(error);

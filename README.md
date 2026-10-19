@@ -89,8 +89,16 @@ Events: `email.sent`, `email.delivered`, `email.bounced`, `email.complained`, `e
 
 Verify `DeskFrog-Signature: t=<unix>,v1=<hex>`, where `v1 = HMAC_SHA256(secret, "<t>.<raw body>")`. Reject anything where `t` is older than 5 minutes. Failed deliveries retry with backoff (1m → 24h).
 
+## Email editor
+
+`/editor/:campaignId` is a drag-and-drop block builder. A design is JSON (`src/lib/email/design.ts`) and is rendered to email-safe HTML with MJML (`src/lib/email/render.ts`) on every save.
+- Blocks: logo, heading, text (rich text via TipTap, with merge tags), image (uploads to the `email-assets` Storage bucket), button, 2 or 3 columns, divider, spacer, social, raw HTML
+- Brand kit per workspace (Settings → Brand): logo, colours and font apply to new emails
+- Starter templates: Blank, Newsletter, Event entries open, Results are up, Announcement
+- Autosave, undo/redo, preview on desktop and mobile, and send test
+- The API accepts the same `design` JSON on `POST /campaigns` and `PATCH /campaigns/:id`
+
 ## Not built yet
 - Stripe billing / plan upgrades (the plan is changed in the DB for now)
-- Visual email editor (campaigns take HTML or plain text)
 - Double opt-in signup forms and automations
 - Team invites (single owner per workspace)

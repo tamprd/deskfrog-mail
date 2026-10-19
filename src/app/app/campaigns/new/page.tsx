@@ -1,11 +1,14 @@
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
+import { STARTER_TEMPLATES } from "@/lib/email/templates";
 import { ActionForm, Submit } from "@/components/action-form";
 import { createCampaign } from "../../actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "New campaign · Desk Frog Mail" };
+
+const ICON: Record<string, string> = { blank: "📄", newsletter: "📰", event: "🏁", results: "🏆", announcement: "📣" };
 
 export default async function NewCampaign() {
   const { workspace, user } = await requireSession();
@@ -18,7 +21,7 @@ export default async function NewCampaign() {
     <div className="max-w-3xl space-y-6">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">New campaign</h1>
-        <p className="text-muted">Saved as a draft. You&apos;ll review it before anything is sent.</p>
+        <p className="text-muted">Set the basics, pick a starting point, then design it in the editor.</p>
       </header>
       <ActionForm action={createCampaign} className="card space-y-5 p-6">
         <div>
@@ -53,13 +56,22 @@ export default async function NewCampaign() {
             <input className="input" id="tags" name="tags" placeholder="competitor, 2026-season" />
           </div>
         </div>
-        <div>
-          <label className="label" htmlFor="html">Content</label>
-          <textarea className="input min-h-[280px] font-mono text-xs" id="html" name="html" required
-            placeholder={"Hi {{first_name|there}},\n\nEntries for Round 4 are now open...\n\n(Plain text or HTML. Unsubscribe link and footer are added automatically.)"} />
-          <p className="mt-1 text-xs text-muted">Merge tags: <code>{"{{first_name}}"}</code>, <code>{"{{last_name}}"}</code>, <code>{"{{email}}"}</code>, any custom field, with fallbacks like <code>{"{{first_name|there}}"}</code>.</p>
-        </div>
-        <Submit pending="Saving…">Save draft</Submit>
+        <fieldset>
+          <legend className="label">Start from</legend>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {STARTER_TEMPLATES.map((t, i) => (
+              <label key={t.id} className="cursor-pointer">
+                <input type="radio" name="template" value={t.id} defaultChecked={i === 1} className="peer sr-only" />
+                <span className="block h-full rounded-xl border-2 border-line bg-white p-4 transition-colors peer-checked:border-frog-700 peer-checked:bg-frog-50 peer-focus-visible:ring-2 peer-focus-visible:ring-frog hover:border-frog">
+                  <span className="text-2xl" aria-hidden>{ICON[t.id]}</span>
+                  <span className="mt-1 block font-semibold">{t.name}</span>
+                  <span className="block text-xs text-muted">{t.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <Submit pending="Creating…">Continue to design →</Submit>
       </ActionForm>
     </div>
   );

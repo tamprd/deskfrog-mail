@@ -8,6 +8,9 @@ import { ApiError, generateApiKey } from "@/lib/api";
 import { enqueueCampaign } from "@/lib/campaigns";
 import { assertContactCapacity } from "@/lib/workspace";
 import { newWebhookSecret, WEBHOOK_EVENTS } from "@/lib/webhooks";
+import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
+import { renderDesign } from "@/lib/email/render";
+import { getStarter } from "@/lib/email/templates";
 
 const msg = (e: unknown) => (e instanceof ApiError ? e.message : (e as Error).message ?? "Something went wrong");
 
@@ -96,7 +99,9 @@ export async function unsubscribeFromDashboard(formData: FormData) {
 export async function createCampaign(_prev: unknown, formData: FormData) {
   const { workspace } = await requireSession();
   const f = (k: string) => String(formData.get(k) ?? "").trim();
-  const html = f("html").includes("<") ? f("html") : `<p>${f("html").replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br>")}</p>`;
+  const { data: ws } = await admin().from("workspaces").select("brand").eq("id", workspace.id).single();
+  const brand = (ws?.brand ?? {}) as Partial<Brand>;
+  const design = getStarter(f("template") || "blank").build(brand);
   const row = {
     workspace_id: workspace.id,
     name: f("name"),
@@ -105,12 +110,69 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
     from_email: f("from_email").toLowerCase(),
     list_id: f("list_id") || null,
     tag_filter: f("tags").split(",").map((t) => t.trim()).filter(Boolean),
-    html,
+    design,
+    html: await renderDesign(design, brand),
   };
-  if (!row.name || !row.subject || !row.from_name || !row.from_email || !f("html")) return { error: "Fill in every field." };
+  if (!row.name || !row.subject || !row.from_name || !row.from_email) return { error: "Fill in every field." };
   const { data, error } = await admin().from("campaigns").insert(row).select("id").single();
   if (error) return { error: error.message };
-  redirect(`/app/campaigns/${data.id}`);
+  redirect(`/editor/${data.id}`);
+}
+
+/** Copy a campaign (any status) into a new draft. */
+export async function duplicateCampaign(formData: FormData) {
+  const { workspace } = await requireSession();
+  const db = admin();
+  const { data: c } = await db
+    .from("campaigns")
+    .select("name, subject, from_name, from_email, reply_to, html, text, design, list_id, tag_filter")
+    .eq("id", String(formData.get("id")))
+    .eq("workspace_id", workspace.id)
+    .maybeSingle();
+  if (!c) return;
+  const { data } = await db.from("campaigns").insert({ ...c, name: `${c.name} (copy)`, workspace_id: workspace.id }).select("id").single();
+  if (data) redirect(`/editor/${data.id}`);
+}
+
+// ── Brand kit ────────────────────────────────────────────
+
+export async function saveBrand(_prev: unknown, formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return { error: "Only admins can change the brand." };
+  const hex = (k: string, fallback: string) => {
+    const v = String(formData.get(k) ?? "").trim();
+    return /^#[0-9a-f]{6}$/i.test(v) ? v.toUpperCase() : fallback;
+  };
+  const db = admin();
+  const { data: ws } = await db.from("workspaces").select("brand").eq("id", workspace.id).single();
+  const prev = { ...DEFAULT_BRAND, ...((ws?.brand ?? {}) as Partial<Brand>) };
+  let logoUrl = prev.logoUrl;
+
+  const file = formData.get("logo");
+  if (file instanceof File && file.size > 0) {
+    const ext: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
+    if (!ext[file.type]) return { error: "Logo must be PNG, JPG, GIF or WebP." };
+    if (file.size > 2 * 1024 * 1024) return { error: "Logo must be under 2 MB." };
+    const path = `${workspace.id}/logo-${Date.now()}.${ext[file.type]}`;
+    const { error } = await db.storage.from("email-assets").upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, cacheControl: "31536000" });
+    if (error) return { error: error.message };
+    logoUrl = db.storage.from("email-assets").getPublicUrl(path).data.publicUrl;
+  }
+  if (formData.get("remove_logo") === "on") logoUrl = undefined;
+
+  const font = String(formData.get("font") ?? prev.font);
+  const brand: Brand = {
+    logoUrl,
+    primary: hex("primary", prev.primary),
+    text: hex("text", prev.text),
+    background: hex("background", prev.background),
+    content: hex("content", prev.content),
+    font: font in FONTS ? font : prev.font,
+  };
+  const { error } = await db.from("workspaces").update({ brand }).eq("id", workspace.id);
+  if (error) return { error: error.message };
+  revalidatePath("/app/settings");
+  return { ok: "Brand saved. New emails will use it." };
 }
 
 export async function sendCampaign(_prev: unknown, formData: FormData) {

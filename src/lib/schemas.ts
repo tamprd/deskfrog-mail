@@ -59,6 +59,8 @@ export const campaignInput = z.object({
   template_id: z.string().uuid().nullish(),
   list_id: z.string().uuid().nullish(),
   tag_filter: z.array(tag).max(20).optional(),
+  // Block design (same JSON the editor produces). Rendered to HTML on save.
+  design: z.object({ version: z.literal(1), settings: z.record(z.string(), z.unknown()), blocks: z.array(z.record(z.string(), z.unknown())) }).passthrough().optional(),
 });
 
 export const campaignSend = z.object({
