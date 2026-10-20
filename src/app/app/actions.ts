@@ -396,14 +396,13 @@ export async function updateContact(_prev: unknown, formData: FormData) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
   const tags = [...new Set(String(formData.get("tags") || "").split(",").map((t) => t.trim()).filter(Boolean))];
   const fields: Record<string, string> = {};
-  for (const line of String(formData.get("fields") || "").split(/\r?\n/)) {
-    const i = line.indexOf(":");
-    if (i > 0) {
-      const k = line.slice(0, i).trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
-      const v = line.slice(i + 1).trim();
-      if (k && v) fields[k] = v;
-    }
-  }
+  const keys = formData.getAll("field_key").map(String);
+  const vals = formData.getAll("field_value").map(String);
+  keys.forEach((raw, i) => {
+    const k = raw.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+    const v = (vals[i] ?? "").trim();
+    if (k && v) fields[k] = v;
+  });
 
   const { error } = await db
     .from("contacts")

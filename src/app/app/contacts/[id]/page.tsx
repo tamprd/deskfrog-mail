@@ -6,6 +6,7 @@ import { recipientState, type RecipientRow } from "@/lib/recipients";
 import { StatusPill } from "@/components/status";
 import { deleteContact, unsubscribeFromDashboard, updateContact } from "../../actions";
 import { ActionForm, Submit } from "@/components/action-form";
+import { FieldRows } from "@/components/field-rows";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Contact · Desk Frog Mail" };
@@ -36,7 +37,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
     .maybeSingle();
   if (!c) notFound();
 
-  const [{ data: msgs }, { data: events }, { data: allLists }] = await Promise.all([
+  const [{ data: msgs }, { data: events }, { data: allLists }, { data: fieldSamples }] = await Promise.all([
     db
       .from("messages")
       .select("id, to_email, status, kind, subject, sent_at, delivered_at, opened_at, clicked_at, open_count, click_count, last_error, campaign:campaigns(id, name)")
@@ -45,7 +46,9 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
       .limit(200),
     db.from("events").select("type, data, created_at, message_id").eq("contact_id", c.id).in("type", ["click", "unsubscribe", "complaint", "bounce"]).order("created_at", { ascending: false }).limit(300),
     db.from("lists").select("id, name").eq("workspace_id", workspace.id).order("created_at"),
+    db.from("contacts").select("fields").eq("workspace_id", workspace.id).neq("fields", "{}").limit(500),
   ]);
+  const knownFields = [...new Set((fieldSamples ?? []).flatMap((r) => Object.keys((r.fields ?? {}) as object)))].sort();
   const rows = (msgs ?? []) as unknown as Row[];
   const clicksByMsg = new Map<string, string[]>();
   (events ?? []).filter((e) => e.type === "click" && e.message_id).forEach((e) => {
@@ -154,9 +157,9 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
                 </fieldset>
               )}
               <div>
-                <label className="label" htmlFor="fields">Custom fields <span className="font-normal text-muted">(one per line, name: value)</span></label>
-                <textarea id="fields" name="fields" rows={3} className="input font-mono text-xs" placeholder={"car_number: 42\nclass: Outright"} defaultValue={fields.map(([k, v]) => `${k}: ${String(v)}`).join("\n")} />
-                <p className="mt-1 text-xs text-muted">Use them in emails as {"{{car_number}}"}.</p>
+                <p className="label">Custom fields</p>
+                <FieldRows initial={fields.map(([k, v]) => [k, String(v)] as [string, string])} suggestions={knownFields} />
+                <p className="mt-1 text-xs text-muted">Use them in emails as {"{{field}}"}, e.g. {"{{car_number}}"}.</p>
               </div>
               <Submit pending="Saving…">Save changes</Submit>
             </ActionForm>
