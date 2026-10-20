@@ -533,3 +533,23 @@ export async function removeSender(formData: FormData) {
   }
   revalidatePath("/app/settings");
 }
+
+// ── Security ─────────────────────────────────────────────
+
+export async function changePassword(_prev: unknown, formData: FormData) {
+  await requireSession();
+  const password = String(formData.get("password") || "");
+  if (password.length < 10) return { error: "Use at least 10 characters." };
+  if (password !== String(formData.get("confirm") || "")) return { error: "The two passwords don't match." };
+  const { userClient } = await import("@/lib/supabase/server");
+  const { error } = await (await userClient()).auth.updateUser({ password });
+  if (error) return { error: error.message };
+  return { ok: "Password changed." };
+}
+
+export async function signOutEverywhere() {
+  await requireSession();
+  const { userClient } = await import("@/lib/supabase/server");
+  await (await userClient()).auth.signOut({ scope: "global" });
+  redirect("/login");
+}

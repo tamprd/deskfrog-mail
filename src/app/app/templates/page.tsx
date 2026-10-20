@@ -43,7 +43,7 @@ export default async function Templates() {
           <h1 className="text-2xl font-bold tracking-tight">Templates</h1>
           <p className="text-muted">Previews use your brand colours and logo. Pick one to start a campaign.</p>
         </div>
-        <Link href="/app/settings#brand" className="btn-secondary">Edit brand</Link>
+        <Link href="/app/settings?tab=details#brand" className="btn-secondary">Edit brand</Link>
       </header>
 
       <section>

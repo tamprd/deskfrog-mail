@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/session";
+import { usage } from "@/lib/workspace";
+import { PlanIcon } from "@/components/plan-icon";
 import { admin } from "@/lib/supabase/admin";
 import { WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { ActionForm, Submit } from "@/components/action-form";
-import { addDomain, addSender, checkDomain, checkSender, removeSender, resendSender, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
+import { addDomain, addSender, checkDomain, checkSender, removeSender, resendSender, changePassword, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, signOutEverywhere, updateWorkspace } from "../actions";
 import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +13,21 @@ export const metadata = { title: "Settings · Desk Frog Mail" };
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-AU", { timeZone: "Australia/Brisbane" }) : "never");
 
-export default async function Settings() {
+const TABS = [
+  ["overview", "Overview"],
+  ["details", "Details"],
+  ["users", "Users"],
+  ["security", "Security"],
+  ["plan", "Plan & billing"],
+  ["domains", "Senders & domains"],
+  ["integrations", "Integrations"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
+export default async function Settings({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { workspace, user } = await requireSession();
+  const sp = await searchParams;
+  const tab: Tab = (TABS.find(([k]) => k === sp.tab)?.[0] ?? "overview") as Tab;
   const db = admin();
   const [{ data: keys }, { data: hooks }, { data: domains }, { data: senders }] = await Promise.all([
     db.from("api_keys").select("id, name, prefix, last_used_at, revoked_at, created_at").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
@@ -21,13 +37,160 @@ export default async function Settings() {
   ]);
   const { data: wsRow } = await db.from("workspaces").select("brand").eq("id", workspace.id).single();
   const brand = { ...DEFAULT_BRAND, ...((wsRow?.brand ?? {}) as Partial<Brand>) };
+  const [use, { data: plans }, { data: memberRows }] = await Promise.all([
+    tab === "overview" || tab === "plan" ? usage(workspace.id) : Promise.resolve(null),
+    tab === "plan" ? db.from("plans").select("id, name, price_cents, contact_limit, monthly_send_limit, badge_required, custom_domain, automations, sort").lt("sort", 90).order("sort") : Promise.resolve({ data: null }),
+    tab === "users" ? db.from("workspace_members").select("user_id, role, created_at").eq("workspace_id", workspace.id).order("created_at") : Promise.resolve({ data: null }),
+  ]);
+  const members = memberRows
+    ? await Promise.all(memberRows.map(async (m) => ({ ...m, email: (await db.auth.admin.getUserById(m.user_id)).data.user?.email ?? "unknown" })))
+    : [];
+  const readySenders = (senders ?? []).filter((x) => x.ses_verified_at).length;
+  const verifiedDomains = (domains ?? []).filter((d) => d.status === "verified").length;
+  const bar = (n: number, max: number) => (
+    <div className="mt-2 h-2 overflow-hidden rounded-full bg-frog-50"><div className="h-full rounded-full bg-frog" style={{ width: `${Math.min(100, max ? (n / max) * 100 : 0)}%` }} /></div>
+  );
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+    <div className="max-w-4xl space-y-8">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight">{workspace.name}</h1>
+        <nav className="mt-5 flex gap-1 overflow-x-auto border-b border-line" aria-label="Settings">
+          {TABS.map(([k, label]) => (
+            <Link
+              key={k}
+              href={`/app/settings?tab=${k}`}
+              className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${tab === k ? "border-frog-700 text-frog-700" : "border-transparent text-ink hover:text-frog-700"}`}
+              aria-current={tab === k ? "page" : undefined}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </header>
 
+      {tab === "overview" && use && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-3">
+            <div className="card flex items-center gap-4 p-5">
+              <PlanIcon plan={workspace.plan.name} className="h-14 w-14" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Plan</p>
+                <p className="text-xl font-bold">{workspace.plan.name}</p>
+                <Link href="/app/settings?tab=plan" className="text-xs font-semibold text-frog-700 hover:underline">Change plan</Link>
+              </div>
+            </div>
+            <div className="card p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Contacts</p>
+              <p className="text-xl font-bold tabular-nums">{use.contacts.toLocaleString("en-AU")} <span className="text-sm font-medium text-muted">/ {workspace.plan.contact_limit.toLocaleString("en-AU")}</span></p>
+              {bar(use.contacts, workspace.plan.contact_limit)}
+            </div>
+            <div className="card p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Sends this month</p>
+              <p className="text-xl font-bold tabular-nums">{use.sentThisMonth.toLocaleString("en-AU")} <span className="text-sm font-medium text-muted">/ {workspace.plan.monthly_send_limit.toLocaleString("en-AU")}</span></p>
+              {bar(use.sentThisMonth, workspace.plan.monthly_send_limit)}
+            </div>
+          </section>
+          <section className="card p-6">
+            <h2 className="font-semibold">Getting set up</h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {[
+                [readySenders > 0, "Confirm the email address you send from", "domains"],
+                [Boolean(workspace.sender_address), "Add your postal address (shown in email footers)", "details"],
+                [Boolean(brand.logoUrl), "Upload your logo and colours", "details"],
+                [verifiedDomains > 0, "Connect your domain (optional, better inbox placement)", "domains"],
+              ].map(([done, label, t]) => (
+                <li key={String(label)} className="flex items-center gap-3">
+                  <span className={`grid h-5 w-5 place-items-center rounded-full text-xs ${done ? "bg-frog-700 text-white" : "border border-line text-transparent"}`}>✓</span>
+                  {done ? <span className="text-muted line-through">{label}</span> : <Link href={`/app/settings?tab=${t}`} className="font-medium hover:underline">{label}</Link>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+
+      {tab === "users" && (
+        <section className="card p-6">
+          <h2 className="font-semibold">Users in {workspace.name}</h2>
+          <ul className="mt-4 divide-y divide-line text-sm">
+            {members.map((m) => (
+              <li key={m.user_id} className="flex items-center justify-between gap-3 py-3">
+                <span className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-frog-100 font-bold text-forest">{m.email[0]?.toUpperCase()}</span>
+                  <span><span className="font-medium">{m.email}</span>{m.user_id === user.id && <span className="pill ml-2 bg-soft text-muted">You</span>}</span>
+                </span>
+                <span className="pill bg-teal/10 capitalize text-teal-700">{m.role}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-sm text-muted">Inviting teammates is coming next.</p>
+        </section>
+      )}
+
+      {tab === "security" && (
+        <>
+          <section className="card p-6">
+            <h2 className="font-semibold">Password</h2>
+            <p className="mt-1 text-sm text-muted">Signed in as <strong className="text-ink">{user.email}</strong>.</p>
+            <ActionForm action={changePassword} className="mt-4 grid max-w-md gap-3">
+              <input name="password" type="password" minLength={10} required autoComplete="new-password" className="input" placeholder="New password (10+ characters)" aria-label="New password" />
+              <input name="confirm" type="password" minLength={10} required autoComplete="new-password" className="input" placeholder="Repeat new password" aria-label="Repeat new password" />
+              <Submit className="btn-secondary w-fit" pending="Saving…">Change password</Submit>
+            </ActionForm>
+          </section>
+          <section className="card p-6">
+            <h2 className="font-semibold">Sessions</h2>
+            <p className="mt-1 text-sm text-muted">Lost a device or shared your login? Sign out everywhere, including this browser.</p>
+            <form action={signOutEverywhere} className="mt-4"><button className="btn-secondary">Sign out of all devices</button></form>
+          </section>
+          <section className="card p-6">
+            <h2 className="font-semibold">2-factor authentication</h2>
+            <p className="mt-1 text-sm text-muted">Authenticator-app codes at sign-in are coming next.</p>
+          </section>
+        </>
+      )}
+
+      {tab === "plan" && use && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {(plans ?? []).map((p) => {
+              const current = p.id === workspace.plan.id;
+              const fits = use.contacts <= p.contact_limit;
+              return (
+                <div key={p.id} className={`card p-5 ${current ? "ring-2 ring-frog" : ""}`}>
+                  <PlanIcon plan={p.name} className="h-12 w-12" />
+                  <p className="mt-2 font-semibold">{p.name}</p>
+                  <p className="text-2xl font-extrabold tabular-nums">${p.price_cents / 100}<span className="text-sm font-medium text-muted">/mo</span></p>
+                  <ul className="mt-3 space-y-1 text-xs text-muted">
+                    <li>{p.contact_limit.toLocaleString("en-AU")} contacts</li>
+                    <li>{p.monthly_send_limit.toLocaleString("en-AU")} sends / month</li>
+                    <li>{p.badge_required ? "Desk Frog badge" : "No badge"}</li>
+                    {p.automations && <li>Automations</li>}
+                  </ul>
+                  <div className="mt-4">
+                    {current ? (
+                      <span className="pill bg-frog-100 text-forest">Current plan</span>
+                    ) : (
+                      <a href={`mailto:hello@deskfrog.studio?subject=${encodeURIComponent(`Change ${workspace.name} to ${p.name}`)}`} className={`text-sm font-semibold ${fits ? "text-frog-700 hover:underline" : "text-muted"}`}>
+                        {fits ? `Switch to ${p.name}` : `Too small for ${use.contacts.toLocaleString("en-AU")} contacts`}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+          <section className="card p-6">
+            <h2 className="font-semibold">Billing</h2>
+            <p className="mt-1 text-sm text-muted">AUD, GST included. Card payments and invoices are coming soon; for now, plan changes are done by the Desk Frog team.</p>
+          </section>
+        </>
+      )}
+
+      {tab === "details" && (
       <section className="card p-6">
-        <h2 className="font-semibold">Workspace</h2>
+        <h2 className="font-semibold">Account details</h2>
         <form action={updateWorkspace} className="mt-4 space-y-4">
           <div>
             <label className="label" htmlFor="name">Name</label>
@@ -41,7 +204,9 @@ export default async function Settings() {
           <button className="btn-secondary">Save</button>
         </form>
       </section>
+      )}
 
+      {tab === "details" && (
       <section id="brand" className="card scroll-mt-6 p-6">
         <h2 className="font-semibold">Brand</h2>
         <p className="mt-1 text-sm text-muted">Set once — new emails start with your logo, colours and font.</p>
@@ -83,16 +248,11 @@ export default async function Settings() {
           <Submit className="btn-secondary" pending="Saving…">Save brand</Submit>
         </ActionForm>
       </section>
+      )}
 
-      <section className="card p-6">
-        <h2 className="font-semibold">Plan</h2>
-        <p className="mt-1 text-sm text-muted">
-          <strong className="text-ink">{workspace.plan.name}</strong> · {workspace.plan.contact_limit.toLocaleString("en-AU")} contacts ·{" "}
-          {workspace.plan.monthly_send_limit.toLocaleString("en-AU")} sends/month
-          {workspace.plan.badge_required ? " · Desk Frog badge on emails" : ""}
-        </p>
-      </section>
 
+
+      {tab === "integrations" && (
       <section className="card p-6">
         <h2 className="font-semibold">API keys</h2>
         <p className="mt-1 text-sm text-muted">For ArgusIQ, your website or any app. Send as <code className="text-xs">Authorization: Bearer dfm_live_…</code></p>
@@ -118,7 +278,9 @@ export default async function Settings() {
           </div>
         </ActionForm>
       </section>
+      )}
 
+      {tab === "integrations" && (
       <section className="card p-6">
         <h2 className="font-semibold">Webhooks</h2>
         <p className="mt-1 text-sm text-muted">We POST events to your app, signed with a <code className="text-xs">DeskFrog-Signature</code> header.</p>
@@ -144,7 +306,9 @@ export default async function Settings() {
           <Submit className="btn-secondary">Add webhook</Submit>
         </ActionForm>
       </section>
+      )}
 
+      {tab === "domains" && (
       <section className="card p-6" id="senders">
         <h2 className="font-semibold">Sender addresses</h2>
         <p className="mt-1 text-sm text-muted">
@@ -186,7 +350,9 @@ export default async function Settings() {
           ))}
         </ul>
       </section>
+      )}
 
+      {tab === "domains" && (
       <section className="card p-6" id="domains">
         <h2 className="font-semibold">Sending domain <span className="ml-1 text-xs font-normal text-muted">optional</span></h2>
         {workspace.plan.custom_domain ? (
@@ -245,6 +411,7 @@ export default async function Settings() {
           <p className="mt-1 text-sm text-muted">The free plan sends from Desk Frog&apos;s shared address, with replies coming to you. Upgrade to send from your own domain.</p>
         )}
       </section>
+      )}
     </div>
   );
 }
