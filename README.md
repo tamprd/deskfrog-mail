@@ -142,7 +142,16 @@ Set `ANTHROPIC_API_KEY` in Vercel. Code is in `src/lib/ai/`.
 - Referrals: `/?ref=<code>` sets a 60-day cookie; onboarding records `referred_by` and $20 pending credit for both sides.
 - API keys have editable labels and optional expiry.
 
+## Billing (Square)
+
+Paid plans are Square subscriptions (AUD, GST-inclusive; yearly = 10× monthly).
+1. Set the `SQUARE_*` env vars (see `.env.example`), redeploy.
+2. Create the Square catalog plans once: `POST /api/admin/square-sync` with `Authorization: Bearer $CRON_SECRET`. Variation ids are stored on `plans`.
+3. Add a webhook subscription in the Square Developer Console → `/api/square/webhook` (subscription.created, subscription.updated, invoice.payment_made, invoice.scheduled_charge_failed).
+- Checkout: `/app/settings/billing/checkout?plan=<id>` uses the Web Payments SDK (card details never reach our servers), saves a card on file, creates the subscription and switches the plan immediately.
+- Plan changes use swap-plan (new price from the next bill). Cancel ends at the paid-through date, then the account drops to Free.
+- Receipts land in `invoices` (Billing history) from `invoice.payment_made`.
+
 ## Not built yet
-- Stripe billing / plan upgrades (the plan is changed in the DB for now)
 - Double opt-in signup forms and automations
 - Team invites (single owner per workspace)

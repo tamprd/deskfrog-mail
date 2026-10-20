@@ -13,5 +13,10 @@ export const env = {
   get awsRegion() { return process.env.AWS_REGION ?? "ap-southeast-2"; },
   get sesConfigurationSet() { return process.env.SES_CONFIGURATION_SET || undefined; },
   get sharedSendingDomain() { return req("SHARED_SENDING_DOMAIN"); },
+  get squareEnv() { return process.env.SQUARE_ENV === "production" ? "production" : "sandbox"; },
+  get squareAccessToken() { return req("SQUARE_ACCESS_TOKEN"); },
+  get squareApplicationId() { return process.env.NEXT_PUBLIC_SQUARE_APPLICATION_ID ?? ""; },
+  get squareLocationId() { return req("SQUARE_LOCATION_ID"); },
+  get squareWebhookKey() { return req("SQUARE_WEBHOOK_SIGNATURE_KEY"); },
   get sesMaxPerSecond() { return Number(process.env.SES_MAX_PER_SECOND ?? 14); },
 };

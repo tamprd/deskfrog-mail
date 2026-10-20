@@ -2,6 +2,9 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { usage } from "@/lib/workspace";
 import { PlanIcon } from "@/components/plan-icon";
+import { ActionForm, Submit } from "@/components/action-form";
+import Link from "next/link";
+import { changePlan } from "../billing/actions";
 
 export const metadata = { title: "Plans · Desk Frog Mail" };
 
@@ -20,10 +23,12 @@ const FEATURES: [string, (p: { id: string }) => string | boolean][] = [
 
 export default async function Plans() {
   const { workspace } = await requireSession();
-  const [use, { data: plans }] = await Promise.all([
+  const [use, { data: plans }, { data: w }] = await Promise.all([
     usage(workspace.id),
     admin().from("plans").select("id, name, price_cents, contact_limit, monthly_send_limit").lt("sort", 90).order("sort"),
+    admin().from("workspaces").select("square_subscription_id, subscription_status, billing_cycle, cancel_at").eq("id", workspace.id).single(),
   ]);
+  const subscribed = Boolean(w?.square_subscription_id) && !["CANCELED", "DEACTIVATED"].includes(w?.subscription_status ?? "");
   return (
     <section className="card overflow-hidden">
       <div className="overflow-x-auto">
@@ -42,10 +47,18 @@ export default async function Plans() {
                     <div className="mt-3 font-normal">
                       {current ? (
                         <span className="pill bg-frog-100 text-forest">Current plan</span>
-                      ) : fits ? (
-                        <a className="btn-primary px-3 py-1.5 text-xs" href={`mailto:hello@deskfrog.studio?subject=${encodeURIComponent(`Change ${workspace.name} to ${p.name}`)}`}>Switch to {p.name}</a>
-                      ) : (
+                      ) : !fits ? (
                         <span className="text-xs text-muted">Too small for {use.contacts.toLocaleString("en-AU")} contacts</span>
+                      ) : p.price_cents === 0 ? (
+                        subscribed ? <Link href="/app/settings/billing" className="text-xs font-semibold text-muted hover:underline">Cancel paid plan</Link> : null
+                      ) : subscribed ? (
+                        <ActionForm action={changePlan}>
+                          <input type="hidden" name="plan" value={p.id} />
+                          <input type="hidden" name="cycle" value={w?.billing_cycle ?? "monthly"} />
+                          <Submit className="btn-primary px-3 py-1.5 text-xs" pending="Switching…">Switch to {p.name}</Submit>
+                        </ActionForm>
+                      ) : (
+                        <Link className="btn-primary px-3 py-1.5 text-xs" href={`/app/settings/billing/checkout?plan=${p.id}`}>Choose {p.name}</Link>
                       )}
                     </div>
                   </th>
@@ -68,7 +81,7 @@ export default async function Plans() {
           </tbody>
         </table>
       </div>
-      <p className="border-t border-line p-4 text-xs text-muted">AUD per month, GST included. Pay yearly and get 2 months free. Over 25,000 contacts? Email hello@deskfrog.studio.</p>
+      <p className="border-t border-line p-4 text-xs text-muted">AUD per month, GST included. Pay yearly and get 2 months free. Plan changes apply straight away; the new price starts from your next bill. Over 25,000 contacts? Email hello@deskfrog.studio.</p>
     </section>
   );
 }

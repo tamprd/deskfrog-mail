@@ -97,5 +97,9 @@ export async function runNotifications() {
     ).catch(() => {});
     sent++;
   }
+  // 3. Safety net: cancelled subscriptions past their end date drop to Free (normally the Square webhook does this).
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Brisbane" });
+  await db.from("workspaces").update({ plan_id: "free", square_subscription_id: null }).lt("cancel_at", today).neq("plan_id", "free");
+
   return { sent };
 }
