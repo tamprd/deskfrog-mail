@@ -33,7 +33,10 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">Audience</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Audience</h1>
+          <Link href="/app/contacts/import" className="btn-secondary">Import from Mailchimp</Link>
+        </div>
         <p className="text-muted">{(count ?? 0).toLocaleString("en-AU")} contacts · {workspace.plan.contact_limit.toLocaleString("en-AU")} on your plan</p>
       </header>
 
