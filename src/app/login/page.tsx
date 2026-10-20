@@ -38,7 +38,7 @@ export default async function LoginPage({
           {signup ? "Start sending for free" : "Welcome back"}
         </h1>
         <p className="mt-2 text-muted">
-          {signup ? "Free for up to 250 contacts. No card needed." : "Sign in to your workspace."}
+          {signup ? "Free for up to 500 contacts. No card needed." : "Sign in to your workspace."}
         </p>
         <form action={signIn} className="mt-8 max-w-sm space-y-4">
           <input type="hidden" name="next" value={next ?? "/app"} />
