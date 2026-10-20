@@ -49,7 +49,15 @@ export default async function Dashboard() {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Meter label="Contacts" used={u.contacts} limit={workspace.plan.contact_limit} />
         <Meter label="Sends this month" used={u.sentThisMonth} limit={workspace.plan.monthly_send_limit} />
-        <Meter label="Sends today" used={u.sentToday + u.queued} limit={dailyCap(workspace)} />
+        {dailyCap(workspace) !== null ? (
+          <Meter label="Sends today · first week" used={u.sentToday + u.queued} limit={dailyCap(workspace)!} />
+        ) : (
+          <div className="card p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Sent today</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums">{(u.sentToday + u.queued).toLocaleString("en-AU")}</p>
+            <p className="mt-3 text-xs text-muted">No daily limit</p>
+          </div>
+        )}
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Open rate · 30 days</p>
           <p className="mt-2 text-2xl font-bold tabular-nums">{openRate}%</p>

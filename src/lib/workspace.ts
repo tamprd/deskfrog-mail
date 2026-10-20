@@ -73,17 +73,22 @@ export async function usage(workspaceId: string) {
   };
 }
 
-export function dailyCap(ws: Workspace) {
-  // Trusted accounts and anyone who's paid by card skip the new-account throttle.
-  if (ws.trusted || ws.subscription_status === "ACTIVE") return ws.plan.daily_send_limit;
+/**
+ * No daily limit on plans, only the monthly one. The exception is a brand-new account's
+ * first week (100 a day) to stop spammers; trusted and paying accounts skip it.
+ * Returns null when there's no daily cap.
+ */
+export function dailyCap(ws: Workspace): number | null {
+  if (ws.trusted || ws.subscription_status === "ACTIVE") return null;
   const ageDays = (Date.now() - new Date(ws.created_at).getTime()) / 86_400_000;
-  return ageDays < NEW_ACCOUNT_DAYS ? Math.min(ws.plan.daily_send_limit, NEW_ACCOUNT_DAILY_CAP) : ws.plan.daily_send_limit;
+  return ageDays < NEW_ACCOUNT_DAYS ? NEW_ACCOUNT_DAILY_CAP : null;
 }
 
 /** How many more emails this workspace may queue right now. */
 export async function remainingSends(ws: Workspace) {
   const u = await usage(ws.id);
-  const daily = dailyCap(ws) - u.sentToday - u.queued;
+  const cap = dailyCap(ws);
+  const daily = cap === null ? Infinity : cap - u.sentToday - u.queued;
   const monthly = ws.plan.monthly_send_limit - u.sentThisMonth - u.queued;
   return Math.max(0, Math.min(daily, monthly));
 }
