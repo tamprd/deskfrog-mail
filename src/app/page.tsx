@@ -56,7 +56,7 @@ export default function Home() {
             {tiers.map((t) => (
               <div key={t.name} className={`card relative p-6 ${t.popular ? "ring-2 ring-frog" : ""}`}>
                 {t.popular && <span className="pill absolute -top-3 left-6 bg-frog-700 text-white">Most popular</span>}
-                <PlanIcon plan={t.name} className="mb-3 h-14 w-14" />
+                <PlanIcon plan={t.name} className="mb-3 h-16 w-16" />
                 <p className="font-semibold">{t.name}</p>
                 <p className="mt-2 text-3xl font-extrabold tabular-nums">${t.price}<span className="text-sm font-medium text-muted">/mo</span></p>
                 <p className="text-xs text-muted">{t.price ? `or $${(t.price * 10).toLocaleString("en-AU")}/yr` : "free forever"}</p>
