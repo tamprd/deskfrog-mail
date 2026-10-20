@@ -35,13 +35,19 @@ export default async function CampaignPage({
   const tab = sp.tab === "recipients" || sp.tab === "links" ? sp.tab : "overview";
   const { workspace, user } = await requireSession();
   const db = admin();
-  const { data: c } = await db
+  const { data: row, error } = await db
     .from("campaigns")
-    .select("*, list:lists(name), original:campaigns!campaigns_resend_of_fkey(id, name)")
+    .select("*, list:lists(name)")
     .eq("workspace_id", workspace.id)
     .eq("id", id)
     .maybeSingle();
-  if (!c) notFound();
+  if (error) throw new Error(error.message);
+  if (!row) notFound();
+  // Self-referencing embeds are ambiguous in PostgREST, so load the original separately.
+  const { data: original } = row.resend_of
+    ? await db.from("campaigns").select("id, name").eq("workspace_id", workspace.id).eq("id", row.resend_of).maybeSingle()
+    : { data: null };
+  const c = { ...row, original };
 
   const draft = c.status === "draft";
   const { data: stats } = draft ? { data: null } : await db.rpc("campaign_stats", { cid: id }).single<Record<string, number>>();
