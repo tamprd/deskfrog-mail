@@ -454,6 +454,9 @@ const sesMissing = (e: unknown) =>
     ? "Email sending isn't fully connected yet. Try again shortly."
     : String((e as Error)?.message ?? e);
 
+const lookFor = (via: "branded" | "amazon") =>
+  via === "branded" ? `an email from Desk Frog Mail ("Confirm your sending address")` : `an email from Amazon Web Services ("Email Address Verification Request")`;
+
 /** Add a sender address. Amazon emails it a confirmation link; once clicked, campaigns can be sent as that address. */
 export async function addSender(_prev: unknown, formData: FormData) {
   const { workspace, role } = await requireSession();
@@ -466,6 +469,7 @@ export async function addSender(_prev: unknown, formData: FormData) {
   if ((count ?? 0) >= 20) return { error: "You can have up to 20 sender addresses." };
   const { error } = await db.from("sender_addresses").upsert({ workspace_id: workspace.id, email, name }, { onConflict: "workspace_id,email" });
   if (error) return { error: error.message };
+  let via: "branded" | "amazon" = "branded";
   try {
     const { isEmailVerified, requestEmailVerification } = await import("@/lib/ses");
     if (await isEmailVerified(email)) {
@@ -474,14 +478,14 @@ export async function addSender(_prev: unknown, formData: FormData) {
       revalidatePath("/app/settings", "layout");
       return { ok: `${email} is ready to use.` };
     }
-    await requestEmailVerification(email);
+    via = await requestEmailVerification(email);
     await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("workspace_id", workspace.id).eq("email", email);
   } catch (e) {
     revalidatePath("/app/settings", "layout");
     return { error: sesMissing(e) };
   }
   revalidatePath("/app/settings", "layout");
-  return { ok: `Check ${email} for an email from Amazon Web Services ("Email Address Verification Request"). Click the link in it, then press Check.` };
+  return { ok: `Check ${email} for ${lookFor(via)}. Click the link in it and you're ready.` };
 }
 
 /** Ask Amazon whether the address has been confirmed. */
@@ -492,7 +496,7 @@ export async function checkSender(_prev: unknown, formData: FormData) {
   const { data: s } = await db.from("sender_addresses").select("email").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
   if (!s) return { error: "That address was removed." };
   const { isEmailVerified } = await import("@/lib/ses");
-  if (!(await isEmailVerified(s.email))) return { error: "Not confirmed yet. Click the link in the Amazon email (check junk), then try again." };
+  if (!(await isEmailVerified(s.email))) return { error: "Not confirmed yet. Click the link in the confirmation email (check junk), then try again." };
   const now = new Date().toISOString();
   await db.from("sender_addresses").update({ ses_verified_at: now, verified_at: now }).eq("id", id);
   revalidatePath("/app/settings", "layout");
@@ -506,19 +510,20 @@ export async function resendSender(_prev: unknown, formData: FormData) {
   const { data: s } = await db.from("sender_addresses").select("email, sent_at, ses_verified_at").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
   if (!s) return { error: "That address was removed." };
   if (s.ses_verified_at) return { ok: "Already confirmed." };
+  let via: "branded" | "amazon" = "branded";
   if (s.sent_at) {
     const wait = 60 - Math.floor((Date.now() - new Date(s.sent_at).getTime()) / 1000);
     if (wait > 0) return { error: `Just sent. Try again in ${wait}s.` };
   }
   try {
     const { requestEmailVerification } = await import("@/lib/ses");
-    await requestEmailVerification(s.email, { resend: true });
+    via = await requestEmailVerification(s.email, { resend: true });
     await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("id", id);
   } catch (e) {
     return { error: sesMissing(e) };
   }
   revalidatePath("/app/settings", "layout");
-  return { ok: `Sent again to ${s.email}. Look for "Amazon Web Services – Email Address Verification Request".` };
+  return { ok: `Sent again to ${s.email}. Look for ${lookFor(via)}.` };
 }
 
 export async function removeSender(formData: FormData) {

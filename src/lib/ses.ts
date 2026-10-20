@@ -6,7 +6,11 @@ import {
   GetEmailIdentityCommand,
   PutEmailIdentityMailFromAttributesCommand,
   DeleteEmailIdentityCommand,
+  SendCustomVerificationEmailCommand,
+  CreateCustomVerificationEmailTemplateCommand,
+  UpdateCustomVerificationEmailTemplateCommand,
 } from "@aws-sdk/client-sesv2";
+import { verifyTemplate } from "@/lib/email/verify-template";
 import { env } from "@/lib/env";
 
 let client: SESv2Client | null = null;
@@ -97,7 +101,41 @@ export async function domainStatus(domain: string) {
 }
 
 /** Ask SES to verify a single email address. AWS emails the address a confirmation link from its own (well-trusted) sender. */
-export async function requestEmailVerification(email: string, { resend = false } = {}) {
+export const VERIFY_TEMPLATE = "deskfrog-verify-sender";
+
+/** Create or update our branded "confirm your sending address" email in SES. */
+export async function syncVerifyTemplate() {
+  const t = verifyTemplate();
+  const input = {
+    TemplateName: VERIFY_TEMPLATE,
+    FromEmailAddress: `hello@${env.sharedSendingDomain}`,
+    TemplateSubject: t.subject,
+    TemplateContent: t.html,
+    SuccessRedirectionURL: `${env.appUrl}/sender-confirmed`,
+    FailureRedirectionURL: `${env.appUrl}/sender-confirmed?failed=1`,
+  };
+  try {
+    await ses().send(new UpdateCustomVerificationEmailTemplateCommand(input));
+    return "updated";
+  } catch (err) {
+    if ((err as { name?: string }).name !== "NotFoundException") throw err;
+    await ses().send(new CreateCustomVerificationEmailTemplateCommand(input));
+    return "created";
+  }
+}
+
+/**
+ * Email the address a confirmation link. Uses our branded Desk Frog Mail email;
+ * falls back to Amazon's plain one if the template or permission isn't there yet.
+ * Returns which one was sent.
+ */
+export async function requestEmailVerification(email: string, { resend = false } = {}): Promise<"branded" | "amazon"> {
+  try {
+    await ses().send(new SendCustomVerificationEmailCommand({ EmailAddress: email, TemplateName: VERIFY_TEMPLATE }));
+    return "branded";
+  } catch (err) {
+    console.warn("custom verification failed, using Amazon's", (err as Error).name, (err as Error).message);
+  }
   if (resend) {
     try {
       await ses().send(new DeleteEmailIdentityCommand({ EmailIdentity: email }));
@@ -110,6 +148,7 @@ export async function requestEmailVerification(email: string, { resend = false }
   } catch (err) {
     if ((err as { name?: string }).name !== "AlreadyExistsException") throw err;
   }
+  return "amazon";
 }
 
 export async function isEmailVerified(email: string) {

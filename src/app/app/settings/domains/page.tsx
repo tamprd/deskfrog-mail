@@ -12,12 +12,23 @@ export default async function Domains() {
     db.from("sending_domains").select("id, domain, status, dns_records").eq("workspace_id", workspace.id),
     db.from("sender_addresses").select("id, email, name, verified_at, ses_verified_at, sent_at").eq("workspace_id", workspace.id).order("created_at"),
   ]);
+  // Anyone who clicked the link since last visit shows as ready without pressing Check.
+  const pending = (senders ?? []).filter((x) => !x.ses_verified_at && x.sent_at).slice(0, 5);
+  if (pending.length) {
+    const { isEmailVerified } = await import("@/lib/ses");
+    const done = (await Promise.all(pending.map(async (x) => ((await isEmailVerified(x.email)) ? x : null)))).filter((x) => x !== null);
+    const now = new Date().toISOString();
+    for (const x of done) {
+      await db.from("sender_addresses").update({ ses_verified_at: now, verified_at: now }).eq("id", x.id);
+      x.ses_verified_at = now;
+    }
+  }
   return (
     <>
       <section className="card p-6" id="senders">
         <h2 className="font-semibold">Sender addresses</h2>
         <p className="mt-1 text-sm text-muted">
-          Add the address you want emails to come from. Amazon Web Services emails it a confirmation link; click it and you&apos;re ready.
+          Add the address you want emails to come from. We email it a confirmation link; click it and you&apos;re ready.
           No DNS or technical setup needed.
         </p>
         <ActionForm action={addSender} className="mt-4 grid max-w-2xl gap-2 sm:grid-cols-[1fr_1.3fr_auto]">

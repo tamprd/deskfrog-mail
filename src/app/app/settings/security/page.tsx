@@ -4,12 +4,14 @@ import { changePassword, signOutEverywhere } from "../../actions";
 
 export const metadata = { title: "Security · Desk Frog Mail" };
 
-export default async function Security() {
+export default async function Security({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const { user } = await requireSession();
+  const { reset } = await searchParams;
   return (
         <>
           <section className="card p-6">
             <h2 className="font-semibold">Password</h2>
+            {reset && <p className="mt-2 rounded-lg bg-frog-50 p-3 text-sm text-forest">You&apos;re signed in. Choose a new password below.</p>}
             <p className="mt-1 text-sm text-muted">Signed in as <strong className="text-ink">{user.email}</strong>.</p>
             <ActionForm action={changePassword} className="mt-4 grid max-w-md gap-3">
               <input name="password" type="password" minLength={10} required autoComplete="new-password" className="input" placeholder="New password (10+ characters)" aria-label="New password" />
