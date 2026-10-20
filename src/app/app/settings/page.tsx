@@ -17,7 +17,7 @@ export default async function Settings() {
     db.from("api_keys").select("id, name, prefix, last_used_at, revoked_at, created_at").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
     db.from("webhook_endpoints").select("id, url, events, active").eq("workspace_id", workspace.id),
     db.from("sending_domains").select("id, domain, status, dns_records").eq("workspace_id", workspace.id),
-    db.from("sender_addresses").select("id, email, name, verified_at").eq("workspace_id", workspace.id).order("created_at"),
+    db.from("sender_addresses").select("id, email, name, verified_at, sent_at").eq("workspace_id", workspace.id).order("created_at"),
   ]);
   const { data: wsRow } = await db.from("workspaces").select("brand").eq("id", workspace.id).single();
   const brand = { ...DEFAULT_BRAND, ...((wsRow?.brand ?? {}) as Partial<Brand>) };
@@ -169,8 +169,13 @@ export default async function Settings() {
                   <span className="pill bg-frog-100 text-forest">verified</span>
                 ) : (
                   <>
-                    <span className="pill bg-amber-50 text-warn">check your inbox</span>
-                    <form action={resendSender}><input type="hidden" name="id" value={x.id} /><button className="text-xs font-semibold text-frog-700 hover:underline">Resend</button></form>
+                    <span className="pill bg-amber-50 text-warn">
+                      {x.sent_at ? `email sent ${new Date(x.sent_at).toLocaleTimeString("en-AU", { timeZone: "Australia/Brisbane", hour: "numeric", minute: "2-digit" })}` : "not sent yet"}
+                    </span>
+                    <ActionForm action={resendSender} className="text-right">
+                      <input type="hidden" name="id" value={x.id} />
+                      <Submit className="text-xs font-semibold text-frog-700 hover:underline" pending="Sending…">Resend</Submit>
+                    </ActionForm>
                   </>
                 )}
                 <form action={removeSender}><input type="hidden" name="id" value={x.id} /><button className="text-xs text-muted underline hover:text-danger">Remove</button></form>

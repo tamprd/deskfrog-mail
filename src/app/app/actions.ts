@@ -474,20 +474,26 @@ export async function addSender(_prev: unknown, formData: FormData) {
   return { ok: `Verification email sent to ${email}. Click the link in it to start using this address.` };
 }
 
-export async function resendSender(formData: FormData) {
+export async function resendSender(_prev: unknown, formData: FormData) {
   const { workspace } = await requireSession();
   const db = admin();
-  const { data: s } = await db.from("sender_addresses").select("email, token, verified_at, sent_at").eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id).maybeSingle();
-  if (!s || s.verified_at) return;
-  if (s.sent_at && Date.now() - new Date(s.sent_at).getTime() < 60_000) return; // 1/minute
+  const id = String(formData.get("id"));
+  const { data: s } = await db.from("sender_addresses").select("email, token, verified_at, sent_at").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
+  if (!s) return { error: "That address was removed." };
+  if (s.verified_at) return { ok: "Already verified." };
+  if (s.sent_at) {
+    const wait = 60 - Math.floor((Date.now() - new Date(s.sent_at).getTime()) / 1000);
+    if (wait > 0) return { error: `Just sent. Try again in ${wait}s.` };
+  }
   try {
     const { sendSenderVerification } = await import("@/lib/senders");
     await sendSenderVerification({ token: s.token, email: s.email, workspaceName: workspace.name });
-    await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("id", String(formData.get("id")));
-  } catch {
-    /* not connected yet */
+    await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("id", id);
+  } catch (e) {
+    return { error: `Couldn't send: ${(e as Error).message}` };
   }
   revalidatePath("/app/settings");
+  return { ok: `Sent to ${s.email}. Check junk/spam if it's not there in a minute.` };
 }
 
 export async function removeSender(formData: FormData) {
