@@ -328,3 +328,58 @@ export async function createResend(formData: FormData) {
     .single();
   if (data) redirect(`/app/campaigns/${data.id}`);
 }
+
+const DOMAIN_RE = /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.[a-z0-9-]{1,63})+$/;
+const sesNotReady = (e: unknown) =>
+  /AWS|credential|SES_|region|Missing env/i.test(String((e as Error)?.message ?? e))
+    ? "Email sending isn't connected yet (Amazon SES setup). Your domain can be added once that's done."
+    : String((e as Error)?.message ?? e);
+
+/** Add a sending domain from Settings; returns the DNS records to add. */
+export async function addDomain(_prev: unknown, formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return { error: "Only admins can add domains." };
+  if (!workspace.plan.custom_domain) return { error: "Your own sending domain is available on paid plans." };
+  const domain = String(formData.get("domain") || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  if (!DOMAIN_RE.test(domain)) return { error: "Enter a domain like tamperedmotorsport.com.au" };
+  if (domain.endsWith("deskfrog.studio")) return { error: "That domain is reserved." };
+  const db = admin();
+  const { data: taken } = await db.from("sending_domains").select("workspace_id").eq("domain", domain).neq("workspace_id", workspace.id).limit(1);
+  if (taken?.length) return { error: "That domain is already used by another workspace." };
+  try {
+    const { createDomainIdentity } = await import("@/lib/ses");
+    const id = await createDomainIdentity(domain);
+    const { error } = await db.from("sending_domains").upsert(
+      { workspace_id: workspace.id, domain, dns_records: id.records, status: id.verified ? "verified" : "pending", verified_at: id.verified ? new Date().toISOString() : null },
+      { onConflict: "workspace_id,domain" },
+    );
+    if (error) return { error: error.message };
+  } catch (e) {
+    return { error: sesNotReady(e) };
+  }
+  revalidatePath("/app/settings");
+  return { ok: `${domain} added. Now add the DNS records below.` };
+}
+
+/** Re-check DNS verification for a domain. */
+export async function checkDomain(formData: FormData) {
+  const { workspace } = await requireSession();
+  const db = admin();
+  const { data: d } = await db.from("sending_domains").select("id, domain").eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id).maybeSingle();
+  if (!d) return;
+  try {
+    const { domainStatus } = await import("@/lib/ses");
+    const s = await domainStatus(d.domain);
+    await db.from("sending_domains").update({ dns_records: s.records, status: s.verified ? "verified" : s.dkimStatus === "FAILED" ? "failed" : "pending", verified_at: s.verified ? new Date().toISOString() : null }).eq("id", d.id);
+  } catch {
+    /* SES not reachable; leave as is */
+  }
+  revalidatePath("/app/settings");
+}
+
+export async function removeDomain(formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return;
+  await admin().from("sending_domains").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
+  revalidatePath("/app/settings");
+}

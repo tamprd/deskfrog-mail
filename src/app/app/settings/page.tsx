@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { ActionForm, Submit } from "@/components/action-form";
-import { createApiKey, createWebhook, deleteWebhook, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
+import { addDomain, checkDomain, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
 import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
 
 export const dynamic = "force-dynamic";
@@ -144,26 +144,60 @@ export default async function Settings() {
         </ActionForm>
       </section>
 
-      <section className="card p-6">
-        <h2 className="font-semibold">Sending domains</h2>
+      <section className="card p-6" id="domains">
+        <h2 className="font-semibold">Sending domain</h2>
         {workspace.plan.custom_domain ? (
           <>
-            <p className="mt-1 text-sm text-muted">Add domains with <code className="text-xs">POST /api/v1/domains</code>, then add the DNS records shown.</p>
-            <ul className="mt-4 space-y-3 text-sm">
+            <p className="mt-1 text-sm text-muted">
+              Send from your own address, e.g. <span className="font-medium text-ink">news@yourclub.com.au</span>. Add your domain, then add the records below
+              wherever your domain&apos;s DNS is managed (GoDaddy, Crazy Domains, Cloudflare, VentraIP…). It usually verifies within an hour.
+            </p>
+            <ActionForm action={addDomain} className="mt-4 flex max-w-lg flex-wrap gap-2">
+              <input name="domain" className="input flex-1" placeholder="tamperedmotorsport.com.au" required aria-label="Domain" />
+              <Submit className="btn-primary" pending="Adding…">Add domain</Submit>
+            </ActionForm>
+            <ul className="mt-5 space-y-4 text-sm">
               {domains?.map((d) => (
-                <li key={d.id} className="rounded-lg border border-line p-3">
-                  <p className="font-medium">{d.domain} <span className="pill ml-2 bg-frog-100 text-forest">{d.status}</span></p>
-                  {d.status !== "verified" && (
-                    <ul className="mt-2 space-y-1 font-mono text-xs break-all text-muted">
-                      {(d.dns_records as { type: string; name: string; value: string }[]).map((r) => <li key={r.name}>{r.type} {r.name} → {r.value}</li>)}
-                    </ul>
+                <li key={d.id} className="rounded-lg border border-line p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold">
+                      {d.domain}
+                      <span className={`pill ml-2 ${d.status === "verified" ? "bg-frog-100 text-forest" : d.status === "failed" ? "bg-red-50 text-danger" : "bg-amber-50 text-warn"}`}>
+                        {d.status === "pending" ? "waiting for DNS" : d.status}
+                      </span>
+                    </p>
+                    <div className="flex gap-3">
+                      {d.status !== "verified" && (
+                        <form action={checkDomain}><input type="hidden" name="id" value={d.id} /><button className="btn-secondary py-1 text-xs">Check now</button></form>
+                      )}
+                      <form action={removeDomain}><input type="hidden" name="id" value={d.id} /><button className="text-xs text-muted underline hover:text-danger">Remove</button></form>
+                    </div>
+                  </div>
+                  {d.status === "verified" ? (
+                    <p className="mt-1 text-muted">Ready. Use any address <span className="font-medium text-ink">@{d.domain}</span> as the From email on your campaigns.</p>
+                  ) : (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-xs">
+                        <thead><tr className="text-left text-muted"><th className="py-1 pr-3">Type</th><th className="py-1 pr-3">Name / Host</th><th className="py-1">Value / Points to</th></tr></thead>
+                        <tbody className="font-mono">
+                          {(d.dns_records as { type: string; name: string; value: string }[]).map((r) => (
+                            <tr key={r.name} className="border-t border-line align-top">
+                              <td className="py-2 pr-3">{r.type}</td>
+                              <td className="select-all break-all py-2 pr-3">{r.name}</td>
+                              <td className="select-all break-all py-2">{r.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="mt-2 text-xs text-muted">Some DNS hosts add your domain automatically. If so, enter only the part before <span className="font-mono">.{d.domain}</span> as the name.</p>
+                    </div>
                   )}
                 </li>
               ))}
             </ul>
           </>
         ) : (
-          <p className="mt-1 text-sm text-muted">Free plan sends from Desk Frog&apos;s shared domain. Upgrade to send from your own domain.</p>
+          <p className="mt-1 text-sm text-muted">The free plan sends from Desk Frog&apos;s shared address, with replies coming to you. Upgrade to send from your own domain.</p>
         )}
       </section>
     </div>
