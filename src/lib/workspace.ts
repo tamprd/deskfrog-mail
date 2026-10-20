@@ -108,7 +108,19 @@ export async function resolveFrom(ws: Workspace, fromName: string, fromEmail: st
     if (data?.status === "verified") {
       return { from: formatAddress(fromName, fromEmail), replyTo: undefined as string | undefined };
     }
-    // Not verified (or not added): fall back to the shared domain, replies still go to the sender.
+    // Not verified (or not added): fall back below.
+  }
+  // Address verified with Amazon, and its domain doesn't forbid others sending as it → send as them (like Mailchimp).
+  const { data: sender } = await admin()
+    .from("sender_addresses")
+    .select("ses_verified_at")
+    .eq("workspace_id", ws.id)
+    .eq("email", fromEmail.toLowerCase())
+    .not("ses_verified_at", "is", null)
+    .maybeSingle();
+  if (sender) {
+    const { canSendAs } = await import("@/lib/dmarc");
+    if (await canSendAs(fromEmail)) return { from: formatAddress(fromName, fromEmail), replyTo: undefined as string | undefined };
   }
   const shared = `${ws.slug}@${env.sharedSendingDomain}`;
   return { from: formatAddress(fromName, shared), replyTo: fromEmail };

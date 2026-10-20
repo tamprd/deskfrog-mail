@@ -5,6 +5,7 @@ import {
   CreateEmailIdentityCommand,
   GetEmailIdentityCommand,
   PutEmailIdentityMailFromAttributesCommand,
+  DeleteEmailIdentityCommand,
 } from "@aws-sdk/client-sesv2";
 import { env } from "@/lib/env";
 
@@ -93,4 +94,37 @@ export async function domainStatus(domain: string) {
     dkimStatus: id.DkimAttributes?.Status ?? "NOT_STARTED",
     records,
   };
+}
+
+/** Ask SES to verify a single email address. AWS emails the address a confirmation link from its own (well-trusted) sender. */
+export async function requestEmailVerification(email: string, { resend = false } = {}) {
+  if (resend) {
+    try {
+      await ses().send(new DeleteEmailIdentityCommand({ EmailIdentity: email }));
+    } catch {
+      /* not there yet, or no delete permission: creating below still works for new addresses */
+    }
+  }
+  try {
+    await ses().send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
+  } catch (err) {
+    if ((err as { name?: string }).name !== "AlreadyExistsException") throw err;
+  }
+}
+
+export async function isEmailVerified(email: string) {
+  try {
+    const id = await ses().send(new GetEmailIdentityCommand({ EmailIdentity: email }));
+    return id.VerifiedForSendingStatus === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteIdentity(identity: string) {
+  try {
+    await ses().send(new DeleteEmailIdentityCommand({ EmailIdentity: identity }));
+  } catch {
+    /* already gone or no permission */
+  }
 }

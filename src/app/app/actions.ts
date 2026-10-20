@@ -447,6 +447,12 @@ export async function deleteContact(formData: FormData) {
 
 // ── Sender addresses ─────────────────────────────────────
 
+const sesMissing = (e: unknown) =>
+  /credential|Missing environment|AccessDenied|not authorized/i.test(String((e as Error)?.message ?? e))
+    ? "Email sending isn't fully connected yet. Try again shortly."
+    : String((e as Error)?.message ?? e);
+
+/** Add a sender address. Amazon emails it a confirmation link; once clicked, campaigns can be sent as that address. */
 export async function addSender(_prev: unknown, formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return { error: "Only admins can add sender addresses." };
@@ -456,49 +462,74 @@ export async function addSender(_prev: unknown, formData: FormData) {
   const db = admin();
   const { count } = await db.from("sender_addresses").select("id", { count: "exact", head: true }).eq("workspace_id", workspace.id);
   if ((count ?? 0) >= 20) return { error: "You can have up to 20 sender addresses." };
-  const { data, error } = await db
-    .from("sender_addresses")
-    .upsert({ workspace_id: workspace.id, email, name }, { onConflict: "workspace_id,email" })
-    .select("token, verified_at")
-    .single();
+  const { error } = await db.from("sender_addresses").upsert({ workspace_id: workspace.id, email, name }, { onConflict: "workspace_id,email" });
   if (error) return { error: error.message };
-  revalidatePath("/app/settings");
-  if (data.verified_at) return { ok: `${email} is already verified.` };
   try {
-    const { sendSenderVerification } = await import("@/lib/senders");
-    await sendSenderVerification({ token: data.token, email, workspaceName: workspace.name });
+    const { isEmailVerified, requestEmailVerification } = await import("@/lib/ses");
+    if (await isEmailVerified(email)) {
+      const now = new Date().toISOString();
+      await db.from("sender_addresses").update({ verified_at: now, ses_verified_at: now }).eq("workspace_id", workspace.id).eq("email", email);
+      revalidatePath("/app/settings");
+      return { ok: `${email} is ready to use.` };
+    }
+    await requestEmailVerification(email);
     await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("workspace_id", workspace.id).eq("email", email);
-  } catch {
-    return { error: `Saved, but the verification email couldn't be sent yet (email sending isn't connected). Use "Resend" once it is.` };
+  } catch (e) {
+    revalidatePath("/app/settings");
+    return { error: sesMissing(e) };
   }
-  return { ok: `Verification email sent to ${email}. Click the link in it to start using this address.` };
+  revalidatePath("/app/settings");
+  return { ok: `Check ${email} for an email from Amazon Web Services ("Email Address Verification Request"). Click the link in it, then press Check.` };
+}
+
+/** Ask Amazon whether the address has been confirmed. */
+export async function checkSender(_prev: unknown, formData: FormData) {
+  const { workspace } = await requireSession();
+  const db = admin();
+  const id = String(formData.get("id"));
+  const { data: s } = await db.from("sender_addresses").select("email").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
+  if (!s) return { error: "That address was removed." };
+  const { isEmailVerified } = await import("@/lib/ses");
+  if (!(await isEmailVerified(s.email))) return { error: "Not confirmed yet. Click the link in the Amazon email (check junk), then try again." };
+  const now = new Date().toISOString();
+  await db.from("sender_addresses").update({ ses_verified_at: now, verified_at: now }).eq("id", id);
+  revalidatePath("/app/settings");
+  return { ok: "Confirmed ✓" };
 }
 
 export async function resendSender(_prev: unknown, formData: FormData) {
   const { workspace } = await requireSession();
   const db = admin();
   const id = String(formData.get("id"));
-  const { data: s } = await db.from("sender_addresses").select("email, token, verified_at, sent_at").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
+  const { data: s } = await db.from("sender_addresses").select("email, sent_at, ses_verified_at").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
   if (!s) return { error: "That address was removed." };
-  if (s.verified_at) return { ok: "Already verified." };
+  if (s.ses_verified_at) return { ok: "Already confirmed." };
   if (s.sent_at) {
     const wait = 60 - Math.floor((Date.now() - new Date(s.sent_at).getTime()) / 1000);
     if (wait > 0) return { error: `Just sent. Try again in ${wait}s.` };
   }
   try {
-    const { sendSenderVerification } = await import("@/lib/senders");
-    await sendSenderVerification({ token: s.token, email: s.email, workspaceName: workspace.name });
+    const { requestEmailVerification } = await import("@/lib/ses");
+    await requestEmailVerification(s.email, { resend: true });
     await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("id", id);
   } catch (e) {
-    return { error: `Couldn't send: ${(e as Error).message}` };
+    return { error: sesMissing(e) };
   }
   revalidatePath("/app/settings");
-  return { ok: `Sent to ${s.email}. Check junk/spam if it's not there in a minute.` };
+  return { ok: `Sent again to ${s.email}. Look for "Amazon Web Services – Email Address Verification Request".` };
 }
 
 export async function removeSender(formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return;
-  await admin().from("sender_addresses").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
+  const db = admin();
+  const { data: s } = await db.from("sender_addresses").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id).select("email").maybeSingle();
+  if (s) {
+    const { count } = await db.from("sender_addresses").select("id", { count: "exact", head: true }).eq("email", s.email);
+    if (!count) {
+      const { deleteIdentity } = await import("@/lib/ses");
+      await deleteIdentity(s.email);
+    }
+  }
   revalidatePath("/app/settings");
 }

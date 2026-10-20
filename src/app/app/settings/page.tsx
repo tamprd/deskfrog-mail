@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { ActionForm, Submit } from "@/components/action-form";
-import { addDomain, addSender, checkDomain, removeSender, resendSender, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
+import { addDomain, addSender, checkDomain, checkSender, removeSender, resendSender, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
 import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function Settings() {
     db.from("api_keys").select("id, name, prefix, last_used_at, revoked_at, created_at").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
     db.from("webhook_endpoints").select("id, url, events, active").eq("workspace_id", workspace.id),
     db.from("sending_domains").select("id, domain, status, dns_records").eq("workspace_id", workspace.id),
-    db.from("sender_addresses").select("id, email, name, verified_at, sent_at").eq("workspace_id", workspace.id).order("created_at"),
+    db.from("sender_addresses").select("id, email, name, verified_at, ses_verified_at, sent_at").eq("workspace_id", workspace.id).order("created_at"),
   ]);
   const { data: wsRow } = await db.from("workspaces").select("brand").eq("id", workspace.id).single();
   const brand = { ...DEFAULT_BRAND, ...((wsRow?.brand ?? {}) as Partial<Brand>) };
@@ -148,8 +148,8 @@ export default async function Settings() {
       <section className="card p-6" id="senders">
         <h2 className="font-semibold">Sender addresses</h2>
         <p className="mt-1 text-sm text-muted">
-          The addresses you can send campaigns from (and get replies at). Add one and we&apos;ll email it a link to confirm it&apos;s yours.
-          Your login email is always available.
+          Add the address you want emails to come from. Amazon Web Services emails it a confirmation link; click it and you&apos;re ready.
+          No DNS or technical setup needed.
         </p>
         <ActionForm action={addSender} className="mt-4 grid max-w-2xl gap-2 sm:grid-cols-[1fr_1.3fr_auto]">
           <input name="name" className="input" placeholder="Name, e.g. Tampered Motorsport" aria-label="Sender name" />
@@ -164,17 +164,19 @@ export default async function Settings() {
           {senders?.filter((x) => x.email !== user.email?.toLowerCase()).map((x) => (
             <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
               <span className="min-w-0 truncate">{x.name && <span className="text-muted">{x.name} · </span>}<span className="font-medium">{x.email}</span></span>
-              <span className="flex items-center gap-3">
-                {x.verified_at ? (
-                  <span className="pill bg-frog-100 text-forest">verified</span>
+              <span className="flex flex-wrap items-center gap-3">
+                {x.ses_verified_at ? (
+                  <span className="pill bg-frog-100 text-forest">ready ✓</span>
                 ) : (
                   <>
-                    <span className="pill bg-amber-50 text-warn">
-                      {x.sent_at ? `email sent ${new Date(x.sent_at).toLocaleTimeString("en-AU", { timeZone: "Australia/Brisbane", hour: "numeric", minute: "2-digit" })}` : "not sent yet"}
-                    </span>
-                    <ActionForm action={resendSender} className="text-right">
+                    <span className="pill bg-amber-50 text-warn">{x.sent_at ? "check your inbox" : "not confirmed"}</span>
+                    <ActionForm action={checkSender}>
                       <input type="hidden" name="id" value={x.id} />
-                      <Submit className="text-xs font-semibold text-frog-700 hover:underline" pending="Sending…">Resend</Submit>
+                      <Submit className="btn-secondary py-1 text-xs" pending="Checking…">Check</Submit>
+                    </ActionForm>
+                    <ActionForm action={resendSender}>
+                      <input type="hidden" name="id" value={x.id} />
+                      <Submit className="text-xs font-semibold text-frog-700 hover:underline" pending="Sending…">{x.sent_at ? "Resend" : "Send confirmation"}</Submit>
                     </ActionForm>
                   </>
                 )}
