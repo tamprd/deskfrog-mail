@@ -19,7 +19,7 @@ Dashboard user ─────────────────────�
 ```
 
 - **Multi-tenant**: everything is scoped by `workspace_id`. Dashboard users go through RLS; the API and worker use the service role.
-- **Plans** live in the `plans` table (AUD/month incl. GST, yearly = 10× monthly): Tadpole (free) $0 (250 contacts, 1,000 sends, badge) · Hopper $19 (2,500 / 15,000) · Leaper $39 (5,000 / 30,000) · Bullfrog $59 (10,000 / 60,000) · King Frog $129 (25,000 / 150,000). Over 25,000: custom. Limits are enforced when queuing: contacts, monthly sends, daily sends. New workspaces are capped at 100/day for their first 7 days.
+- **Plans** live in the `plans` table (AUD/month incl. GST, yearly = 10× monthly): Free $0 (250 contacts, 1,000 sends, badge) · Tadpole $19 (2,500 / 15,000) · Bullfrog $59 (10,000 / 60,000) · King Frog $129 (25,000 / 150,000). Over 25,000: custom. (The `club` row is retired.) Limits are enforced when queuing: contacts, monthly sends, daily sends. New workspaces are capped at 100/day for their first 7 days.
 - **Free plan** sends from `<workspace-slug>@SHARED_SENDING_DOMAIN` with the customer's address as Reply-To, and every email carries the badge. Paid plans send from their own verified domain.
 - **Compliance (Spam Act / Gmail+Yahoo bulk rules)**: consent source recorded per contact, footer with sender identification and an unsubscribe link, RFC 8058 one-click `List-Unsubscribe` headers, unsubscribes honoured instantly.
 - **Abuse guardrails**: hard bounces and complaints go on a *global* suppression list. Workspaces auto-pause at a 4% bounce or 0.08% complaint rate (30 days, after 100 sends).
@@ -130,7 +130,7 @@ Set `ANTHROPIC_API_KEY` in Vercel. Code is in `src/lib/ai/`.
 - **Write with AI** (New campaign): describe the email → Claude Sonnet 5.5 returns a schema-constrained block layout → converted to an on-brand editor design.
 - **AI panel in the editor** (✨ AI): rewrite the whole email or the selected block (shorter, friendlier, urgent, fix grammar, or a custom instruction), and suggest 5 subject lines with preview text. Uses Claude Haiku 5.5. Edits only touch copy, never layout, images or links, and can be undone.
 - AI output is sanitised (allow-listed tags, safe links only) before it reaches a design.
-- **Credits**: each request uses one. Monthly limits per plan are in `src/lib/ai/credits.ts` (Free 10 / Starter 100 / Club 200 / Growth 300 / Pro 1000). Credits are refunded if a call fails.
+- **Credits**: each request uses one. Monthly limits per plan are in `src/lib/ai/credits.ts` (Free 10 / Tadpole 100 / Bullfrog 300 / King Frog 1000). Credits are refunded if a call fails.
 
 ## Not built yet
 - Stripe billing / plan upgrades (the plan is changed in the DB for now)

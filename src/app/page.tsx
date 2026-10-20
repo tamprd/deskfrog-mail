@@ -3,10 +3,9 @@ import { Frog, Logo } from "@/components/frog";
 
 // AUD, GST inclusive. Annual = 10 × monthly (2 months free).
 const tiers = [
-  { name: "Tadpole", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
-  { name: "Hopper", price: 19, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Leaper", price: 39, popular: true, items: ["5,000 contacts", "30,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Bullfrog", price: 59, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
+  { name: "Free", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
+  { name: "Tadpole", price: 19, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Bullfrog", price: 59, popular: true, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
   { name: "King Frog", price: 129, items: ["25,000 contacts", "150,000 sends / month", "Automations", "Priority support"] },
 ];
 
@@ -52,7 +51,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
           <h2 className="text-3xl font-bold tracking-tight">Simple pricing</h2>
           <p className="mt-2 text-muted">AUD per month, GST included. Start free, upgrade when you outgrow it. Pay yearly and get 2 months free.</p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {tiers.map((t) => (
               <div key={t.name} className={`card relative p-6 ${t.popular ? "ring-2 ring-frog" : ""}`}>
                 {t.popular && <span className="pill absolute -top-3 left-6 bg-frog-700 text-white">Most popular</span>}
