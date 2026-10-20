@@ -3,11 +3,11 @@ import { Frog, Logo } from "@/components/frog";
 
 // AUD, GST inclusive. Annual = 10 × monthly (2 months free).
 const tiers = [
-  { name: "Free", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
-  { name: "Starter", price: 15, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Club", price: 25, popular: true, items: ["5,000 contacts", "30,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Growth", price: 39, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
-  { name: "Pro", price: 79, items: ["50,000 contacts", "200,000 sends / month", "Automations", "Priority support"] },
+  { name: "Tadpole", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
+  { name: "Hopper", price: 15, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Leaper", price: 25, popular: true, items: ["5,000 contacts", "30,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Bullfrog", price: 39, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
+  { name: "King Frog", price: 79, items: ["50,000 contacts", "200,000 sends / month", "Automations", "Priority support"] },
 ];
 
 // Comparison with typical pricing elsewhere (entry-level paid plan, AUD per month).
