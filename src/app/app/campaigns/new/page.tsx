@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -24,7 +25,9 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
   const options = [...saved, ...starters];
   const ai = await aiUsage(workspace.id, workspace.plan.id);
   const selected = options.some((o) => o.key === preset) ? preset : "starter:newsletter";
-  const shared = !workspace.plan.custom_domain;
+  const { data: verified } = await admin().from("sending_domains").select("domain").eq("workspace_id", workspace.id).eq("status", "verified");
+  const domains = (verified ?? []).map((d) => d.domain);
+  const shared = !workspace.plan.custom_domain || domains.length === 0;
   let sharedFrom = "";
   try { sharedFrom = `${workspace.slug}@${env.sharedSendingDomain}`; } catch { /* not configured yet */ }
 
@@ -51,7 +54,13 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
           <div>
             <label className="label" htmlFor="from_email">{shared ? "Reply-to email" : "From email"}</label>
             <input className="input" id="from_email" name="from_email" type="email" required defaultValue={user.email ?? ""} />
-            {shared && sharedFrom && <p className="mt-1 text-xs text-muted">Free plan sends from {sharedFrom}; replies go to this address.</p>}
+            {shared && sharedFrom && (
+              <p className="mt-1 text-xs text-muted">
+                Sends from {sharedFrom} with replies to this address.
+                {workspace.plan.custom_domain && <> <Link href="/app/settings#domains" className="font-semibold text-frog-700 hover:underline">Connect your domain</Link> to send as yourself and land in inboxes more reliably.</>}
+              </p>
+            )}
+            {!shared && <p className="mt-1 text-xs text-muted">Use an address at {domains.join(" or ")} to send as yourself. Any other address sends via Desk Frog with replies to you.</p>}
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

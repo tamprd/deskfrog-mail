@@ -145,11 +145,12 @@ export default async function Settings() {
       </section>
 
       <section className="card p-6" id="domains">
-        <h2 className="font-semibold">Sending domain</h2>
+        <h2 className="font-semibold">Sending domain <span className="ml-1 text-xs font-normal text-muted">optional</span></h2>
         {workspace.plan.custom_domain ? (
           <>
             <p className="mt-1 text-sm text-muted">
-              Send from your own address, e.g. <span className="font-medium text-ink">news@yourclub.com.au</span>. Add your domain, then add the records below
+              You can send straight away: without a domain, emails go out from Desk Frog&apos;s address with replies coming to you.
+              Connecting your domain lets you send as <span className="font-medium text-ink">news@yourclub.com.au</span> and gets you into more inboxes. Add your domain, then add the records below
               wherever your domain&apos;s DNS is managed (GoDaddy, Crazy Domains, Cloudflare, VentraIP…). It usually verifies within an hour.
             </p>
             <ActionForm action={addDomain} className="mt-4 flex max-w-lg flex-wrap gap-2">

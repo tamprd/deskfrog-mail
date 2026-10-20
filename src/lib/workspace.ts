@@ -108,7 +108,7 @@ export async function resolveFrom(ws: Workspace, fromName: string, fromEmail: st
     if (data?.status === "verified") {
       return { from: formatAddress(fromName, fromEmail), replyTo: undefined as string | undefined };
     }
-    throw new ApiError(422, "domain_not_verified", `Verify ${domain} before sending from it.`);
+    // Not verified (or not added): fall back to the shared domain, replies still go to the sender.
   }
   const shared = `${ws.slug}@${env.sharedSendingDomain}`;
   return { from: formatAddress(fromName, shared), replyTo: fromEmail };
