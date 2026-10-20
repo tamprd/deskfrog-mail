@@ -81,7 +81,7 @@ export default async function Plans() {
           </tbody>
         </table>
       </div>
-      <p className="border-t border-line p-4 text-xs text-muted">AUD per month, GST included. Pay yearly and get 2 months free. Plan changes apply straight away; the new price starts from your next bill. Over 25,000 contacts? Email hello@deskfrog.studio.</p>
+      <p className="border-t border-line p-4 text-xs text-muted">AUD per month, GST included. Pay yearly and get 2 months free. Plan changes apply straight away; the new price starts from your next bill. Over 15,000 contacts? Email hello@deskfrog.studio.</p>
     </section>
   );
 }

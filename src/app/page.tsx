@@ -5,17 +5,17 @@ import { PlanIcon } from "@/components/plan-icon";
 // AUD, GST inclusive. Annual = 10 × monthly (2 months free).
 const tiers = [
   { name: "Free", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
-  { name: "Tadpole", price: 19, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Bullfrog", price: 59, popular: true, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
-  { name: "King Frog", price: 129, items: ["25,000 contacts", "150,000 sends / month", "Automations", "Priority support"] },
+  { name: "Tadpole", price: 19, items: ["1,500 contacts", "9,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Bullfrog", price: 59, popular: true, items: ["5,000 contacts", "30,000 sends / month", "Automations", "Your own sending domain"] },
+  { name: "King Frog", price: 129, items: ["15,000 contacts", "90,000 sends / month", "Automations", "Priority support"] },
 ];
 
 // Comparison with typical pricing elsewhere (entry-level paid plan, AUD per month).
 const compare = [
   { contacts: "Free plan", them: "250 contacts, 500 sends", us: "250 contacts, 1,000 sends" },
-  { contacts: "2,500 contacts", them: "about $70", us: "$19" },
-  { contacts: "10,000 contacts", them: "about $160", us: "$59" },
-  { contacts: "25,000 contacts", them: "about $330", us: "$129" },
+  { contacts: "1,500 contacts", them: "about $50", us: "$19" },
+  { contacts: "5,000 contacts", them: "about $110", us: "$59" },
+  { contacts: "15,000 contacts", them: "about $230", us: "$129" },
 ];
 
 export default function Home() {
@@ -66,7 +66,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <p className="mt-4 text-sm text-muted">Every paid plan includes custom HTML, full reporting (who opened and clicked), resend to non-openers and AI writing help. Over 25,000 contacts? <a className="font-semibold text-frog-700 hover:underline" href="mailto:hello@deskfrog.studio">Talk to us</a>.</p>
+          <p className="mt-4 text-sm text-muted">Every paid plan includes custom HTML, full reporting (who opened and clicked), resend to non-openers and AI writing help. Over 15,000 contacts? <a className="font-semibold text-frog-700 hover:underline" href="mailto:hello@deskfrog.studio">Talk to us</a>.</p>
 
           <div className="mt-12 overflow-hidden rounded-xl border border-line">
             <div className="bg-frog-50 px-5 py-4">
