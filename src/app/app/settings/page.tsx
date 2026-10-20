@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { ActionForm, Submit } from "@/components/action-form";
-import { addDomain, checkDomain, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
+import { addDomain, addSender, checkDomain, removeSender, resendSender, createApiKey, createWebhook, deleteWebhook, removeDomain, revokeApiKey, saveBrand, updateWorkspace } from "../actions";
 import { DEFAULT_BRAND, FONTS, type Brand } from "@/lib/email/design";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +11,13 @@ export const metadata = { title: "Settings · Desk Frog Mail" };
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-AU", { timeZone: "Australia/Brisbane" }) : "never");
 
 export default async function Settings() {
-  const { workspace } = await requireSession();
+  const { workspace, user } = await requireSession();
   const db = admin();
-  const [{ data: keys }, { data: hooks }, { data: domains }] = await Promise.all([
+  const [{ data: keys }, { data: hooks }, { data: domains }, { data: senders }] = await Promise.all([
     db.from("api_keys").select("id, name, prefix, last_used_at, revoked_at, created_at").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
     db.from("webhook_endpoints").select("id, url, events, active").eq("workspace_id", workspace.id),
     db.from("sending_domains").select("id, domain, status, dns_records").eq("workspace_id", workspace.id),
+    db.from("sender_addresses").select("id, email, name, verified_at").eq("workspace_id", workspace.id).order("created_at"),
   ]);
   const { data: wsRow } = await db.from("workspaces").select("brand").eq("id", workspace.id).single();
   const brand = { ...DEFAULT_BRAND, ...((wsRow?.brand ?? {}) as Partial<Brand>) };
@@ -142,6 +143,41 @@ export default async function Settings() {
           </fieldset>
           <Submit className="btn-secondary">Add webhook</Submit>
         </ActionForm>
+      </section>
+
+      <section className="card p-6" id="senders">
+        <h2 className="font-semibold">Sender addresses</h2>
+        <p className="mt-1 text-sm text-muted">
+          The addresses you can send campaigns from (and get replies at). Add one and we&apos;ll email it a link to confirm it&apos;s yours.
+          Your login email is always available.
+        </p>
+        <ActionForm action={addSender} className="mt-4 grid max-w-2xl gap-2 sm:grid-cols-[1fr_1.3fr_auto]">
+          <input name="name" className="input" placeholder="Name, e.g. Tampered Motorsport" aria-label="Sender name" />
+          <input name="email" type="email" required className="input" placeholder="entries@tamperedmotorsport.com.au" aria-label="Sender email" />
+          <Submit className="btn-primary" pending="Sending…">Add &amp; verify</Submit>
+        </ActionForm>
+        <ul className="mt-4 divide-y divide-line rounded-lg border border-line text-sm">
+          <li className="flex items-center justify-between gap-3 px-4 py-2.5">
+            <span className="min-w-0 truncate"><span className="font-medium">{user.email}</span> <span className="text-muted">· your login</span></span>
+            <span className="pill bg-frog-100 text-forest">verified</span>
+          </li>
+          {senders?.filter((x) => x.email !== user.email?.toLowerCase()).map((x) => (
+            <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+              <span className="min-w-0 truncate">{x.name && <span className="text-muted">{x.name} · </span>}<span className="font-medium">{x.email}</span></span>
+              <span className="flex items-center gap-3">
+                {x.verified_at ? (
+                  <span className="pill bg-frog-100 text-forest">verified</span>
+                ) : (
+                  <>
+                    <span className="pill bg-amber-50 text-warn">check your inbox</span>
+                    <form action={resendSender}><input type="hidden" name="id" value={x.id} /><button className="text-xs font-semibold text-frog-700 hover:underline">Resend</button></form>
+                  </>
+                )}
+                <form action={removeSender}><input type="hidden" name="id" value={x.id} /><button className="text-xs text-muted underline hover:text-danger">Remove</button></form>
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="card p-6" id="domains">

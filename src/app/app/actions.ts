@@ -97,7 +97,7 @@ export async function unsubscribeFromDashboard(formData: FormData) {
 // ── Campaigns ────────────────────────────────────────────
 
 export async function createCampaign(_prev: unknown, formData: FormData) {
-  const { workspace } = await requireSession();
+  const { workspace, user } = await requireSession();
   const f = (k: string) => String(formData.get(k) ?? "").trim();
   const { data: ws } = await admin().from("workspaces").select("brand").eq("id", workspace.id).single();
   const brand = (ws?.brand ?? {}) as Partial<Brand>;
@@ -120,6 +120,12 @@ export async function createCampaign(_prev: unknown, formData: FormData) {
     }
   }
   if (!f("name") || !f("from_name") || !f("from_email")) return { error: "Fill in the campaign name and sender details." };
+  {
+    const { isAllowedSender } = await import("@/lib/senders");
+    if (!(await isAllowedSender(workspace.id, f("from_email"), user.email))) {
+      return { error: "Verify that email address first (Settings → Sender addresses)." };
+    }
+  }
   let subject = f("subject");
   // How the content is authored: template (default) | blank | html | text | ai
   const mode = f("mode") || "template";
@@ -437,4 +443,56 @@ export async function deleteContact(formData: FormData) {
   await admin().from("contacts").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
   revalidatePath("/app/contacts");
   redirect("/app/contacts");
+}
+
+// ── Sender addresses ─────────────────────────────────────
+
+export async function addSender(_prev: unknown, formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return { error: "Only admins can add sender addresses." };
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const name = String(formData.get("name") || "").trim() || null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
+  const db = admin();
+  const { count } = await db.from("sender_addresses").select("id", { count: "exact", head: true }).eq("workspace_id", workspace.id);
+  if ((count ?? 0) >= 20) return { error: "You can have up to 20 sender addresses." };
+  const { data, error } = await db
+    .from("sender_addresses")
+    .upsert({ workspace_id: workspace.id, email, name }, { onConflict: "workspace_id,email" })
+    .select("token, verified_at")
+    .single();
+  if (error) return { error: error.message };
+  revalidatePath("/app/settings");
+  if (data.verified_at) return { ok: `${email} is already verified.` };
+  try {
+    const { sendSenderVerification } = await import("@/lib/senders");
+    await sendSenderVerification({ token: data.token, email, workspaceName: workspace.name });
+    await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("workspace_id", workspace.id).eq("email", email);
+  } catch {
+    return { error: `Saved, but the verification email couldn't be sent yet (email sending isn't connected). Use "Resend" once it is.` };
+  }
+  return { ok: `Verification email sent to ${email}. Click the link in it to start using this address.` };
+}
+
+export async function resendSender(formData: FormData) {
+  const { workspace } = await requireSession();
+  const db = admin();
+  const { data: s } = await db.from("sender_addresses").select("email, token, verified_at, sent_at").eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id).maybeSingle();
+  if (!s || s.verified_at) return;
+  if (s.sent_at && Date.now() - new Date(s.sent_at).getTime() < 60_000) return; // 1/minute
+  try {
+    const { sendSenderVerification } = await import("@/lib/senders");
+    await sendSenderVerification({ token: s.token, email: s.email, workspaceName: workspace.name });
+    await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("id", String(formData.get("id")));
+  } catch {
+    /* not connected yet */
+  }
+  revalidatePath("/app/settings");
+}
+
+export async function removeSender(formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return;
+  await admin().from("sender_addresses").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
+  revalidatePath("/app/settings");
 }

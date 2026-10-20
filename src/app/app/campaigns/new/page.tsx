@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
+import { allowedSenders } from "@/lib/senders";
 import { brandFor, savedGallery, starterGallery } from "@/lib/email/gallery";
 import { ContentChooser } from "@/components/content-chooser";
 import { aiUsage } from "@/lib/ai/credits";
@@ -25,8 +26,7 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
   const options = [...saved, ...starters];
   const ai = await aiUsage(workspace.id, workspace.plan.id);
   const selected = options.some((o) => o.key === preset) ? preset : "starter:newsletter";
-  const { data: verified } = await admin().from("sending_domains").select("domain").eq("workspace_id", workspace.id).eq("status", "verified");
-  const domains = (verified ?? []).map((d) => d.domain);
+  const { senders, domains } = await allowedSenders(workspace.id, user.email);
   const shared = !workspace.plan.custom_domain || domains.length === 0;
   let sharedFrom = "";
   try { sharedFrom = `${workspace.slug}@${env.sharedSendingDomain}`; } catch { /* not configured yet */ }
@@ -53,7 +53,10 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
           </div>
           <div>
             <label className="label" htmlFor="from_email">{shared ? "Reply-to email" : "From email"}</label>
-            <input className="input" id="from_email" name="from_email" type="email" required defaultValue={user.email ?? ""} />
+            <select className="input" id="from_email" name="from_email" required defaultValue={senders[0]?.email}>
+              {senders.map((x) => <option key={x.email} value={x.email}>{x.name ? `${x.name} <${x.email}>` : x.email}</option>)}
+            </select>
+            <p className="mt-1 text-xs"><Link href="/app/settings#senders" className="font-semibold text-frog-700 hover:underline">+ Add a sender address</Link></p>
             {shared && sharedFrom && (
               <p className="mt-1 text-xs text-muted">
                 Sends from {sharedFrom} with replies to this address.
