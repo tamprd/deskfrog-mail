@@ -223,7 +223,7 @@ export default async function Settings() {
                         <thead><tr className="text-left text-muted"><th className="py-1 pr-3">Type</th><th className="py-1 pr-3">Name / Host</th><th className="py-1">Value / Points to</th></tr></thead>
                         <tbody className="font-mono">
                           {(d.dns_records as { type: string; name: string; value: string }[]).map((r) => (
-                            <tr key={r.name} className="border-t border-line align-top">
+                            <tr key={`${r.type}:${r.name}`} className="border-t border-line align-top">
                               <td className="py-2 pr-3">{r.type}</td>
                               <td className="select-all break-all py-2 pr-3">{r.name}</td>
                               <td className="select-all break-all py-2">{r.value}</td>
@@ -231,7 +231,8 @@ export default async function Settings() {
                           ))}
                         </tbody>
                       </table>
-                      <p className="mt-2 text-xs text-muted">Some DNS hosts add your domain automatically. If so, enter only the part before <span className="font-mono">.{d.domain}</span> as the name.</p>
+                      <p className="mt-2 text-xs text-muted">Some DNS hosts add your domain automatically. If so, enter only the part before <span className="font-mono">.{d.domain}</span> as the name.
+                        Skip the <span className="font-mono">_dmarc</span> record if your domain already has one; two DMARC records break each other.</p>
                     </div>
                   )}
                 </li>

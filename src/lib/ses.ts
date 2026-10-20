@@ -4,6 +4,7 @@ import {
   SendEmailCommand,
   CreateEmailIdentityCommand,
   GetEmailIdentityCommand,
+  PutEmailIdentityMailFromAttributesCommand,
 } from "@aws-sdk/client-sesv2";
 import { env } from "@/lib/env";
 
@@ -55,12 +56,20 @@ export function isTransient(err: unknown) {
   return Boolean(e?.$retryable) || e?.name === "TooManyRequestsException" || e?.name === "ThrottlingException" || code >= 500;
 }
 
-/** Register a domain with SES (Easy DKIM) and return the DNS records the customer must add. */
+/** Register a domain with SES (Easy DKIM + custom MAIL FROM) and return the DNS records the customer must add. */
 export async function createDomainIdentity(domain: string) {
   try {
     await ses().send(new CreateEmailIdentityCommand({ EmailIdentity: domain }));
   } catch (err) {
     if ((err as { name?: string }).name !== "AlreadyExistsException") throw err;
+  }
+  // Custom MAIL FROM (bounce.<domain>) makes SPF align too, which Microsoft 365 / Outlook weigh heavily.
+  try {
+    await ses().send(
+      new PutEmailIdentityMailFromAttributesCommand({ EmailIdentity: domain, MailFromDomain: `bounce.${domain}`, BehaviorOnMxFailure: "USE_DEFAULT_VALUE" }),
+    );
+  } catch {
+    /* needs ses:PutEmailIdentityMailFromAttributes; DKIM alone still works */
   }
   return domainStatus(domain);
 }
@@ -68,8 +77,15 @@ export async function createDomainIdentity(domain: string) {
 export async function domainStatus(domain: string) {
   const id = await ses().send(new GetEmailIdentityCommand({ EmailIdentity: domain }));
   const tokens = id.DkimAttributes?.Tokens ?? [];
+  const mailFrom = id.MailFromAttributes?.MailFromDomain;
   const records = [
     ...tokens.map((t) => ({ type: "CNAME", name: `${t}._domainkey.${domain}`, value: `${t}.dkim.amazonses.com` })),
+    ...(mailFrom
+      ? [
+          { type: "MX", name: mailFrom, value: `10 feedback-smtp.${env.awsRegion}.amazonses.com` },
+          { type: "TXT", name: mailFrom, value: "v=spf1 include:amazonses.com ~all" },
+        ]
+      : []),
     { type: "TXT", name: `_dmarc.${domain}`, value: "v=DMARC1; p=none;" },
   ];
   return {
