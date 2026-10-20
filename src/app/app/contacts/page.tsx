@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -95,7 +96,7 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
             <tbody>
               {contacts?.map((c) => (
                 <tr key={c.id}>
-                  <td className="td font-medium">{c.email}</td>
+                  <td className="td font-medium"><Link href={`/app/contacts/${c.id}`} className="hover:underline">{c.email}</Link></td>
                   <td className="td text-muted">{[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}</td>
                   <td className="td">{c.tags.map((t: string) => <span key={t} className="pill mr-1 bg-teal/10 text-teal-700">{t}</span>)}</td>
                   <td className="td"><StatusPill status={c.status} /></td>

@@ -110,6 +110,16 @@ New campaign → **Start with**: Template, Drag & drop (blank), Paste HTML, Plai
 - `html`: raw HTML sent exactly as written, edited in a full-page code editor with live preview. The footer goes in before `</body>`. API campaigns created with `html` (no `design`) use this format.
 - `text`: plain-text only (no HTML part), with a plain-text unsubscribe footer.
 
+## Engagement & resends
+
+- Each campaign has **Recipients** and **Link clicks** tabs:
+  - filters: everyone, opened, clicked, didn't open, bounced, unsubscribed, not sent
+  - search, and CSV export (`/app/campaigns/:id/export?filter=`)
+- Each contact (`/app/contacts/:id`) shows their full history: every email, opens and clicks with times, which links they clicked, and bounces or unsubscribes.
+- **Resend to non-openers** creates a draft with `resend_of` set. `enqueue_campaign` then only targets people who got the original, didn't open or click it, and are still subscribed.
+- Counters: `messages.open_count` and `click_count` are updated atomically by `record_engagement()` from the SES event handler. "Opened" includes anyone who clicked.
+- Unsubscribes from the email link are attributed to the most recent campaign sent to that person (within 60 days).
+
 ## Media library
 
 Media (in the sidebar) shows every uploaded image in the `email-assets` bucket (`<workspace_id>/…`), with search, drag-and-drop upload, copy link and delete. Image fields in the editor and the HTML editors have a 🖼 Library / Insert image picker.

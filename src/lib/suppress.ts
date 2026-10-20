@@ -17,10 +17,25 @@ export async function unsubscribeContact(contactId: string, source: string, mess
   await db.from("contacts").update({ status: "unsubscribed", unsubscribed_at: now }).eq("id", c.id);
   await db.from("list_members").update({ status: "unsubscribed" }).eq("contact_id", c.id);
   await db.from("suppressions").upsert({ workspace_id: c.workspace_id, email: c.email, reason: "unsubscribe" });
+  // Attribute the unsubscribe to the campaign email that prompted it (most recent one sent to them).
+  let attributedTo = messageId ?? null;
+  if (!attributedTo) {
+    const { data: last } = await db
+      .from("messages")
+      .select("id")
+      .eq("contact_id", c.id)
+      .eq("kind", "campaign")
+      .not("sent_at", "is", null)
+      .gte("sent_at", new Date(Date.now() - 60 * 86_400_000).toISOString())
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    attributedTo = last?.id ?? null;
+  }
   await db.from("events").insert({
     workspace_id: c.workspace_id,
     contact_id: c.id,
-    message_id: messageId ?? null,
+    message_id: attributedTo,
     type: "unsubscribe",
     data: { source },
   });

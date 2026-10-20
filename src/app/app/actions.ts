@@ -306,3 +306,25 @@ export async function deleteWebhook(formData: FormData) {
   await admin().from("webhook_endpoints").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
   revalidatePath("/app/settings");
 }
+
+/** New draft that goes only to people who received `id` but didn't open or click it. */
+export async function createResend(formData: FormData) {
+  const { workspace } = await requireSession();
+  const db = admin();
+  const id = String(formData.get("id"));
+  const { data: c } = await db
+    .from("campaigns")
+    .select("id, name, subject, from_name, from_email, reply_to, html, text, design, format, list_id, tag_filter, status")
+    .eq("id", id)
+    .eq("workspace_id", workspace.id)
+    .maybeSingle();
+  if (!c || c.status === "draft") return;
+  const { id: _orig, status: _s, ...copy } = c;
+  void _orig; void _s;
+  const { data } = await db
+    .from("campaigns")
+    .insert({ ...copy, name: `Resend: ${c.name}`.slice(0, 120), workspace_id: workspace.id, resend_of: c.id })
+    .select("id")
+    .single();
+  if (data) redirect(`/app/campaigns/${data.id}`);
+}

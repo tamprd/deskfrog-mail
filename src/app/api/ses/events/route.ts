@@ -78,7 +78,7 @@ async function handle(ev: SesEvent) {
       break;
     }
     case "Open": {
-      if (!m.opened_at) await db.from("messages").update({ opened_at: ev.open?.timestamp }).eq("id", m.id);
+      await db.rpc("record_engagement", { p_message: m.id, p_kind: "open", p_at: ev.open?.timestamp ?? new Date().toISOString() });
       await log("open", { user_agent: ev.open?.userAgent });
       await emit(m.workspace_id, "email.opened", base);
       break;
@@ -86,7 +86,7 @@ async function handle(ev: SesEvent) {
     case "Click": {
       // Ignore SES tracking of our own unsubscribe link; that's recorded as an unsubscribe.
       if (ev.click?.link?.includes("/u/")) break;
-      if (!m.clicked_at) await db.from("messages").update({ clicked_at: ev.click?.timestamp }).eq("id", m.id);
+      await db.rpc("record_engagement", { p_message: m.id, p_kind: "click", p_at: ev.click?.timestamp ?? new Date().toISOString() });
       await log("click", { link: ev.click?.link });
       await emit(m.workspace_id, "email.clicked", { ...base, link: ev.click?.link });
       break;
