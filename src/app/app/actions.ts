@@ -383,3 +383,59 @@ export async function removeDomain(formData: FormData) {
   await admin().from("sending_domains").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
   revalidatePath("/app/settings");
 }
+
+/** Edit a contact's details, tags, custom fields and list membership from their profile. */
+export async function updateContact(_prev: unknown, formData: FormData) {
+  const { workspace } = await requireSession();
+  const db = admin();
+  const id = String(formData.get("id"));
+  const { data: c } = await db.from("contacts").select("id, email").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
+  if (!c) return { error: "Contact not found." };
+
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
+  const tags = [...new Set(String(formData.get("tags") || "").split(",").map((t) => t.trim()).filter(Boolean))];
+  const fields: Record<string, string> = {};
+  for (const line of String(formData.get("fields") || "").split(/\r?\n/)) {
+    const i = line.indexOf(":");
+    if (i > 0) {
+      const k = line.slice(0, i).trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+      const v = line.slice(i + 1).trim();
+      if (k && v) fields[k] = v;
+    }
+  }
+
+  const { error } = await db
+    .from("contacts")
+    .update({
+      email,
+      first_name: String(formData.get("first_name") || "").trim() || null,
+      last_name: String(formData.get("last_name") || "").trim() || null,
+      tags,
+      fields,
+    })
+    .eq("id", id)
+    .eq("workspace_id", workspace.id);
+  if (error) return { error: error.code === "23505" ? "Another contact already has that email." : error.message };
+
+  // Lists: add ticked, remove unticked (only lists in this workspace).
+  const { data: lists } = await db.from("lists").select("id").eq("workspace_id", workspace.id);
+  const all = (lists ?? []).map((l) => l.id);
+  const want = formData.getAll("lists").map(String).filter((l) => all.includes(l));
+  const drop = all.filter((l) => !want.includes(l));
+  if (want.length) {
+    await db.from("list_members").upsert(want.map((list_id) => ({ list_id, contact_id: id, workspace_id: workspace.id })), { onConflict: "list_id,contact_id", ignoreDuplicates: true });
+  }
+  if (drop.length) await db.from("list_members").delete().eq("contact_id", id).in("list_id", drop);
+
+  revalidatePath(`/app/contacts/${id}`);
+  revalidatePath("/app/contacts");
+  return { ok: "Saved." };
+}
+
+export async function deleteContact(formData: FormData) {
+  const { workspace } = await requireSession();
+  await admin().from("contacts").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
+  revalidatePath("/app/contacts");
+  redirect("/app/contacts");
+}

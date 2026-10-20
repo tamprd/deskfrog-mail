@@ -4,7 +4,8 @@ import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { recipientState, type RecipientRow } from "@/lib/recipients";
 import { StatusPill } from "@/components/status";
-import { unsubscribeFromDashboard } from "../../actions";
+import { deleteContact, unsubscribeFromDashboard, updateContact } from "../../actions";
+import { ActionForm, Submit } from "@/components/action-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Contact · Desk Frog Mail" };
@@ -29,13 +30,13 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const db = admin();
   const { data: c } = await db
     .from("contacts")
-    .select("id, email, first_name, last_name, external_id, fields, tags, status, consent_source, consented_at, unsubscribed_at, created_at, lists:list_members(status, list:lists(name))")
+    .select("id, email, first_name, last_name, external_id, fields, tags, status, consent_source, consented_at, unsubscribed_at, created_at, lists:list_members(status, list_id, list:lists(name))")
     .eq("workspace_id", workspace.id)
     .eq("id", id)
     .maybeSingle();
   if (!c) notFound();
 
-  const [{ data: msgs }, { data: events }] = await Promise.all([
+  const [{ data: msgs }, { data: events }, { data: allLists }] = await Promise.all([
     db
       .from("messages")
       .select("id, to_email, status, kind, subject, sent_at, delivered_at, opened_at, clicked_at, open_count, click_count, last_error, campaign:campaigns(id, name)")
@@ -43,6 +44,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
       .order("created_at", { ascending: false })
       .limit(200),
     db.from("events").select("type, data, created_at, message_id").eq("contact_id", c.id).in("type", ["click", "unsubscribe", "complaint", "bounce"]).order("created_at", { ascending: false }).limit(300),
+    db.from("lists").select("id, name").eq("workspace_id", workspace.id).order("created_at"),
   ]);
   const rows = (msgs ?? []) as unknown as Row[];
   const clicksByMsg = new Map<string, string[]>();
@@ -58,7 +60,8 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const last = rows.map((r) => r.clicked_at ?? r.opened_at).filter(Boolean).sort().pop() as string | undefined;
   const pct = (n: number) => (sent.length ? `${Math.round((n / sent.length) * 100)}%` : "—");
   const name = [c.first_name, c.last_name].filter(Boolean).join(" ");
-  const lists = (c.lists as unknown as { status: string; list: { name: string } | null }[]) ?? [];
+  const lists = (c.lists as unknown as { status: string; list_id: string; list: { name: string } | null }[]) ?? [];
+  const inList = new Set(lists.map((l) => l.list_id));
   const fields = Object.entries((c.fields ?? {}) as Record<string, unknown>);
 
   return (
@@ -128,6 +131,40 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         </section>
 
         <aside className="space-y-4">
+          <details className="card group p-5 text-sm" open={false}>
+            <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">
+              Edit details <span className="text-frog-700 group-open:hidden">✎ Edit</span><span className="hidden text-muted group-open:inline">Close</span>
+            </summary>
+            <ActionForm action={updateContact} className="mt-4 space-y-3">
+              <input type="hidden" name="id" value={c.id} />
+              <div><label className="label" htmlFor="email">Email</label><input id="email" name="email" type="email" className="input" defaultValue={c.email} required /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="label" htmlFor="first_name">First name</label><input id="first_name" name="first_name" className="input" defaultValue={c.first_name ?? ""} /></div>
+                <div><label className="label" htmlFor="last_name">Last name</label><input id="last_name" name="last_name" className="input" defaultValue={c.last_name ?? ""} /></div>
+              </div>
+              <div><label className="label" htmlFor="tags">Tags <span className="font-normal text-muted">(comma separated)</span></label><input id="tags" name="tags" className="input" defaultValue={c.tags.join(", ")} /></div>
+              {!!allLists?.length && (
+                <fieldset>
+                  <legend className="label">Lists</legend>
+                  <div className="space-y-1">
+                    {allLists.map((l) => (
+                      <label key={l.id} className="flex items-center gap-2"><input type="checkbox" name="lists" value={l.id} defaultChecked={inList.has(l.id)} className="accent-frog-700" /> {l.name}</label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+              <div>
+                <label className="label" htmlFor="fields">Custom fields <span className="font-normal text-muted">(one per line, name: value)</span></label>
+                <textarea id="fields" name="fields" rows={3} className="input font-mono text-xs" placeholder={"car_number: 42\nclass: Outright"} defaultValue={fields.map(([k, v]) => `${k}: ${String(v)}`).join("\n")} />
+                <p className="mt-1 text-xs text-muted">Use them in emails as {"{{car_number}}"}.</p>
+              </div>
+              <Submit pending="Saving…">Save changes</Submit>
+            </ActionForm>
+            <form action={deleteContact} className="mt-4 border-t border-line pt-3">
+              <input type="hidden" name="id" value={c.id} />
+              <button className="text-xs text-muted underline hover:text-danger">Delete this contact permanently</button>
+            </form>
+          </details>
           <section className="card space-y-2 p-5 text-sm">
             <h2 className="font-semibold">Details</h2>
             <p><span className="text-muted">Added:</span> {when(c.created_at)}</p>
