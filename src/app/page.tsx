@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Frog, Logo } from "@/components/frog";
+import { PlanIcon } from "@/components/plan-icon";
 
 // AUD, GST inclusive. Annual = 10 × monthly (2 months free).
 const tiers = [
@@ -55,9 +56,10 @@ export default function Home() {
             {tiers.map((t) => (
               <div key={t.name} className={`card relative p-6 ${t.popular ? "ring-2 ring-frog" : ""}`}>
                 {t.popular && <span className="pill absolute -top-3 left-6 bg-frog-700 text-white">Most popular</span>}
+                <PlanIcon plan={t.name} className="mb-3 h-14 w-14" />
                 <p className="font-semibold">{t.name}</p>
                 <p className="mt-2 text-3xl font-extrabold tabular-nums">${t.price}<span className="text-sm font-medium text-muted">/mo</span></p>
-                <p className="text-xs text-muted">{t.price ? `or $${t.price * 10}/yr` : "free forever"}</p>
+                <p className="text-xs text-muted">{t.price ? `or $${(t.price * 10).toLocaleString("en-AU")}/yr` : "free forever"}</p>
                 <ul className="mt-4 space-y-2 text-sm">
                   {t.items.map((it) => <li key={it} className="flex gap-2"><span className="text-frog-700" aria-hidden>✓</span>{it}</li>)}
                 </ul>
