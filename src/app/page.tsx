@@ -4,17 +4,18 @@ import { Frog, Logo } from "@/components/frog";
 // AUD, GST inclusive. Annual = 10 × monthly (2 months free).
 const tiers = [
   { name: "Tadpole", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
-  { name: "Hopper", price: 15, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Leaper", price: 25, popular: true, items: ["5,000 contacts", "30,000 sends / month", "No badge", "Your own sending domain"] },
-  { name: "Bullfrog", price: 39, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
-  { name: "King Frog", price: 79, items: ["50,000 contacts", "200,000 sends / month", "Automations", "Priority support"] },
+  { name: "Hopper", price: 19, items: ["2,500 contacts", "15,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Leaper", price: 39, popular: true, items: ["5,000 contacts", "30,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Bullfrog", price: 59, items: ["10,000 contacts", "60,000 sends / month", "Automations", "Your own sending domain"] },
+  { name: "King Frog", price: 129, items: ["25,000 contacts", "150,000 sends / month", "Automations", "Priority support"] },
 ];
 
 // Comparison with typical pricing elsewhere (entry-level paid plan, AUD per month).
 const compare = [
   { contacts: "Free plan", them: "250 contacts, 500 sends", us: "250 contacts, 1,000 sends" },
-  { contacts: "2,500 contacts", them: "about $70", us: "$15" },
-  { contacts: "10,000 contacts", them: "$160", us: "$39" },
+  { contacts: "2,500 contacts", them: "about $70", us: "$19" },
+  { contacts: "10,000 contacts", them: "about $160", us: "$59" },
+  { contacts: "25,000 contacts", them: "about $330", us: "$129" },
 ];
 
 export default function Home() {
@@ -64,7 +65,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <p className="mt-4 text-sm text-muted">Every paid plan includes custom HTML, full reporting (who opened and clicked), resend to non-openers and AI writing help.</p>
+          <p className="mt-4 text-sm text-muted">Every paid plan includes custom HTML, full reporting (who opened and clicked), resend to non-openers and AI writing help. Over 25,000 contacts? <a className="font-semibold text-frog-700 hover:underline" href="mailto:hello@deskfrog.studio">Talk to us</a>.</p>
 
           <div className="mt-12 overflow-hidden rounded-xl border border-line">
             <div className="bg-frog-50 px-5 py-4">
