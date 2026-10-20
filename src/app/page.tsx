@@ -5,7 +5,7 @@ import { PlanIcon } from "@/components/plan-icon";
 // AUD, GST inclusive. Annual = 10 × monthly (2 months free).
 const tiers = [
   { name: "Free", price: 0, items: ["250 contacts", "1,000 sends / month", "Drag-and-drop editor & templates", "Desk Frog badge on emails"] },
-  { name: "Tadpole", price: 19, items: ["1,500 contacts", "9,000 sends / month", "No badge", "Your own sending domain"] },
+  { name: "Tadpole", price: 19, items: ["500 contacts", "3,000 sends / month", "No badge", "Your own sending domain"] },
   { name: "Bullfrog", price: 59, popular: true, items: ["5,000 contacts", "30,000 sends / month", "Automations", "Your own sending domain"] },
   { name: "King Frog", price: 129, items: ["15,000 contacts", "90,000 sends / month", "Automations", "Priority support"] },
 ];
@@ -13,7 +13,6 @@ const tiers = [
 // Comparison with typical pricing elsewhere (entry-level paid plan, AUD per month).
 const compare = [
   { contacts: "Free plan", them: "250 contacts, 500 sends", us: "250 contacts, 1,000 sends" },
-  { contacts: "1,500 contacts", them: "about $50", us: "$19" },
   { contacts: "5,000 contacts", them: "about $110", us: "$59" },
   { contacts: "15,000 contacts", them: "about $230", us: "$129" },
 ];
