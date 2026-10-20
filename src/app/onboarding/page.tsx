@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { userClient } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { Logo } from "@/components/frog";
@@ -17,9 +18,18 @@ async function createWorkspace(formData: FormData) {
 
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace";
   const slug = `${base.slice(0, 40)}-${crypto.randomUUID().slice(0, 6)}`;
-  const { data: ws, error } = await db.from("workspaces").insert({ name, slug }).select("id").single();
+  const ref = (await cookies()).get("df_ref")?.value;
+  const { data: referrer } = ref ? await db.from("workspaces").select("id").eq("referral_code", ref).maybeSingle() : { data: null };
+  const { data: ws, error } = await db.from("workspaces").insert({ name, slug, referred_by: referrer?.id ?? null }).select("id").single();
   if (error || !ws) redirect(`/onboarding?error=${encodeURIComponent(error?.message ?? "Failed")}`);
   await db.from("workspace_members").insert({ workspace_id: ws.id, user_id: user.id, role: "owner" });
+  if (referrer) {
+    // $20 each, earned once the new account starts a paid plan.
+    await db.from("referral_credits").insert([
+      { workspace_id: referrer.id, referred_id: ws.id, amount_cents: 2000 },
+      { workspace_id: ws.id, referred_id: ws.id, amount_cents: 2000 },
+    ]);
+  }
   redirect("/app");
 }
 

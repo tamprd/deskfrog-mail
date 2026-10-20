@@ -239,7 +239,7 @@ export async function saveBrand(_prev: unknown, formData: FormData) {
   };
   const { error } = await db.from("workspaces").update({ brand }).eq("id", workspace.id);
   if (error) return { error: error.message };
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { ok: "Brand saved. New emails will use it." };
 }
 
@@ -279,10 +279,12 @@ export async function createApiKey(_prev: unknown, formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return { error: "Only admins can create keys." };
   const name = String(formData.get("name") || "API key").trim().slice(0, 60);
+  const days = Number(formData.get("expires") || 0);
+  const expires_at = days > 0 ? new Date(Date.now() + days * 86_400_000).toISOString() : null;
   const { key, prefix, hash } = generateApiKey();
-  const { error } = await admin().from("api_keys").insert({ workspace_id: workspace.id, name, prefix, key_hash: hash });
+  const { error } = await admin().from("api_keys").insert({ workspace_id: workspace.id, name, prefix, key_hash: hash, expires_at });
   if (error) return { error: error.message };
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { key };
 }
 
@@ -290,7 +292,7 @@ export async function revokeApiKey(formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return;
   await admin().from("api_keys").update({ revoked_at: new Date().toISOString() }).eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
 }
 
 export async function createWebhook(_prev: unknown, formData: FormData) {
@@ -302,7 +304,7 @@ export async function createWebhook(_prev: unknown, formData: FormData) {
   const secret = newWebhookSecret();
   const { error } = await admin().from("webhook_endpoints").insert({ workspace_id: workspace.id, url, events, secret });
   if (error) return { error: error.message };
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { secret };
 }
 
@@ -310,7 +312,7 @@ export async function deleteWebhook(formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return;
   await admin().from("webhook_endpoints").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
 }
 
 /** New draft that goes only to people who received `id` but didn't open or click it. */
@@ -363,7 +365,7 @@ export async function addDomain(_prev: unknown, formData: FormData) {
   } catch (e) {
     return { error: sesNotReady(e) };
   }
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { ok: `${domain} added. Now add the DNS records below.` };
 }
 
@@ -380,14 +382,14 @@ export async function checkDomain(formData: FormData) {
   } catch {
     /* SES not reachable; leave as is */
   }
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
 }
 
 export async function removeDomain(formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return;
   await admin().from("sending_domains").delete().eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
 }
 
 /** Edit a contact's details, tags, custom fields and list membership from their profile. */
@@ -469,16 +471,16 @@ export async function addSender(_prev: unknown, formData: FormData) {
     if (await isEmailVerified(email)) {
       const now = new Date().toISOString();
       await db.from("sender_addresses").update({ verified_at: now, ses_verified_at: now }).eq("workspace_id", workspace.id).eq("email", email);
-      revalidatePath("/app/settings");
+      revalidatePath("/app/settings", "layout");
       return { ok: `${email} is ready to use.` };
     }
     await requestEmailVerification(email);
     await db.from("sender_addresses").update({ sent_at: new Date().toISOString() }).eq("workspace_id", workspace.id).eq("email", email);
   } catch (e) {
-    revalidatePath("/app/settings");
+    revalidatePath("/app/settings", "layout");
     return { error: sesMissing(e) };
   }
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { ok: `Check ${email} for an email from Amazon Web Services ("Email Address Verification Request"). Click the link in it, then press Check.` };
 }
 
@@ -493,7 +495,7 @@ export async function checkSender(_prev: unknown, formData: FormData) {
   if (!(await isEmailVerified(s.email))) return { error: "Not confirmed yet. Click the link in the Amazon email (check junk), then try again." };
   const now = new Date().toISOString();
   await db.from("sender_addresses").update({ ses_verified_at: now, verified_at: now }).eq("id", id);
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { ok: "Confirmed ✓" };
 }
 
@@ -515,7 +517,7 @@ export async function resendSender(_prev: unknown, formData: FormData) {
   } catch (e) {
     return { error: sesMissing(e) };
   }
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
   return { ok: `Sent again to ${s.email}. Look for "Amazon Web Services – Email Address Verification Request".` };
 }
 
@@ -531,7 +533,7 @@ export async function removeSender(formData: FormData) {
       await deleteIdentity(s.email);
     }
   }
-  revalidatePath("/app/settings");
+  revalidatePath("/app/settings", "layout");
 }
 
 // ── Security ─────────────────────────────────────────────
@@ -552,4 +554,105 @@ export async function signOutEverywhere() {
   const { userClient } = await import("@/lib/supabase/server");
   await (await userClient()).auth.signOut({ scope: "global" });
   redirect("/login");
+}
+
+// ── Account ──────────────────────────────────────────────
+
+const t = (fd: FormData, k: string, max = 200) => String(fd.get(k) ?? "").trim().slice(0, max) || null;
+
+export async function saveDetails(_prev: unknown, formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return { error: "Only admins can change account details." };
+  const abn = t(formData, "abn", 20)?.replace(/\s+/g, "") ?? null;
+  if (abn && !/^\d{11}$/.test(abn)) return { error: "An ABN is 11 digits." };
+  const { error } = await admin()
+    .from("workspaces")
+    .update({
+      name: t(formData, "name", 80) ?? workspace.name,
+      contact_name: t(formData, "contact_name", 120),
+      company: t(formData, "company", 120),
+      contact_email: t(formData, "contact_email", 200)?.toLowerCase() ?? null,
+      phone: t(formData, "phone", 40),
+      abn,
+      sender_address: t(formData, "sender_address", 300),
+    })
+    .eq("id", workspace.id);
+  if (error) return { error: error.message };
+  revalidatePath("/app", "layout");
+  return { ok: "Saved." };
+}
+
+const NOTIFY_KEYS = ["campaign_sent", "draft_reminder", "import_reminder", "bounce_alert", "billing_alerts", "product_news"] as const;
+
+export async function saveNotifications(_prev: unknown, formData: FormData) {
+  const { workspace } = await requireSession();
+  const notify = Object.fromEntries(NOTIFY_KEYS.map((k) => [k, formData.get(k) === "on"]));
+  const { error } = await admin().from("workspaces").update({ notify }).eq("id", workspace.id);
+  if (error) return { error: error.message };
+  revalidatePath("/app/settings/notifications");
+  return { ok: "Preferences saved." };
+}
+
+export async function renameApiKey(formData: FormData) {
+  const { workspace, role } = await requireSession();
+  if (!["owner", "admin"].includes(role)) return;
+  const name = String(formData.get("name") || "").trim().slice(0, 60);
+  if (name) await admin().from("api_keys").update({ name }).eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id);
+  revalidatePath("/app/settings/api-keys");
+}
+
+export async function saveListDetails(_prev: unknown, formData: FormData) {
+  const { workspace } = await requireSession();
+  const fromEmail = t(formData, "from_email", 200)?.toLowerCase() ?? null;
+  if (fromEmail) {
+    const { isAllowedSender } = await import("@/lib/senders");
+    const { user } = await requireSession();
+    if (!(await isAllowedSender(workspace.id, fromEmail, user.email))) return { error: "Confirm that email address first (Settings → Domains → Sender addresses)." };
+  }
+  const { error } = await admin()
+    .from("lists")
+    .update({
+      name: t(formData, "name", 80) ?? undefined,
+      from_name: t(formData, "from_name", 120),
+      from_email: fromEmail,
+      postal_address: t(formData, "postal_address", 300),
+      permission_reminder: t(formData, "permission_reminder", 400),
+    })
+    .eq("id", String(formData.get("id")))
+    .eq("workspace_id", workspace.id);
+  if (error) return { error: error.message };
+  revalidatePath("/app/contacts", "layout");
+  return { ok: "Saved." };
+}
+
+export async function pausePlan() {
+  const { workspace, role } = await requireSession();
+  if (role !== "owner") return;
+  await admin().from("workspaces").update({ status: "paused", status_reason: "Paused by owner", paused_at: new Date().toISOString() }).eq("id", workspace.id).eq("status", "active");
+  revalidatePath("/app", "layout");
+}
+
+export async function resumePlan() {
+  const { workspace, role } = await requireSession();
+  if (role !== "owner") return;
+  // Only lift an owner pause; abuse pauses stay until reviewed.
+  await admin().from("workspaces").update({ status: "active", status_reason: null, paused_at: null }).eq("id", workspace.id).eq("status_reason", "Paused by owner");
+  revalidatePath("/app", "layout");
+}
+
+export async function deleteAccount(_prev: unknown, formData: FormData) {
+  const { workspace, role, supabase } = await requireSession();
+  if (role !== "owner") return { error: "Only the owner can delete the account." };
+  if (String(formData.get("confirm") ?? "").trim() !== workspace.name) return { error: `Type "${workspace.name}" exactly to confirm.` };
+  const db = admin();
+  const { data: senders } = await db.from("sender_addresses").select("email").eq("workspace_id", workspace.id);
+  const { error } = await db.from("workspaces").delete().eq("id", workspace.id);
+  if (error) return { error: error.message };
+  const { deleteIdentity } = await import("@/lib/ses");
+  for (const s of senders ?? []) {
+    const { count } = await db.from("sender_addresses").select("id", { count: "exact", head: true }).eq("email", s.email);
+    if (!count) await deleteIdentity(s.email).catch(() => {});
+  }
+  await supabase.auth.signOut();
+  redirect("/?deleted=1");
 }

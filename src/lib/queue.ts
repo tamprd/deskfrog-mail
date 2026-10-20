@@ -2,7 +2,8 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { isTransient, sendEmail } from "@/lib/ses";
-import { BADGE_HTML, footerHtml, footerText, htmlToText, merge, oneClickUrl, withFooter, type MergeContact } from "@/lib/render";
+import { badgeHtml, footerHtml, footerText, htmlToText, merge, oneClickUrl, withFooter, type FooterOpts, type MergeContact } from "@/lib/render";
+import { footerFor } from "@/lib/footer";
 import { emit } from "@/lib/webhooks";
 import { getWorkspace, type Workspace } from "@/lib/workspace";
 
@@ -22,7 +23,7 @@ type Message = {
   attempts: number;
 };
 
-type Campaign = { id: string; html: string; text: string | null; subject: string; from_name: string; format: "design" | "html" | "text" };
+type Campaign = { id: string; html: string; text: string | null; subject: string; from_name: string; format: "design" | "html" | "text"; list_id: string | null };
 type Contact = MergeContact & { id: string; status: string };
 
 const MAX_ATTEMPTS = 5;
@@ -149,6 +150,8 @@ async function recoverStuck() {
     .lt("send_after", cutoff);
 }
 
+const footers = new Map<string, FooterOpts>();
+
 async function build(m: Message, ws: Workspace, contact: Contact | undefined, cache: Map<string, Campaign>) {
   const badge = ws.plan.badge_required;
   const headers: Record<string, string> = {};
@@ -158,14 +161,19 @@ async function build(m: Message, ws: Workspace, contact: Contact | undefined, ca
     if (!c) {
       const { data } = await admin()
         .from("campaigns")
-        .select("id, html, text, subject, from_name, format")
+        .select("id, html, text, subject, from_name, format, list_id")
         .eq("id", m.campaign_id)
         .single();
       c = data as Campaign;
       cache.set(c.id, c);
     }
     const token = contact.unsub_token!;
-    const footerOpts = { senderName: c.from_name || ws.name, senderAddress: ws.sender_address, unsubToken: token, badge };
+    let footerBase = footers.get(c.id);
+    if (!footerBase) {
+      footerBase = await footerFor(ws, c, "");
+      footers.set(c.id, footerBase);
+    }
+    const footerOpts = { ...footerBase, unsubToken: token };
     // Plain-text campaigns go out with no HTML part at all.
     const html = c.format === "text" ? null : withFooter(merge(c.html, contact), footerHtml(footerOpts));
     const text = (c.text ? merge(c.text, contact, true) : htmlToText(merge(c.html, contact, true))) + footerText(footerOpts);
@@ -176,7 +184,7 @@ async function build(m: Message, ws: Workspace, contact: Contact | undefined, ca
   }
 
   // Transactional: content was rendered at request time.
-  const html = m.html ? (badge ? withFooter(m.html, BADGE_HTML) : m.html) : null;
-  const text = (m.text ?? (m.html ? htmlToText(m.html) : "")) + (badge ? "\n\nSent with Desk Frog Mail — https://mail.deskfrog.studio" : "");
+  const html = m.html ? (badge ? withFooter(m.html, badgeHtml(ws.referral_code)) : m.html) : null;
+  const text = (m.text ?? (m.html ? htmlToText(m.html) : "")) + (badge ? `\n\nSent with Desk Frog Mail — ${env.appUrl}/?ref=${ws.referral_code || "badge"}` : "");
   return { subject: m.subject, html, text, headers };
 }

@@ -29,38 +29,51 @@ export function merge(input: string, c: MergeContact, raw = false): string {
 export const unsubscribeUrl = (token: string) => `${env.appUrl}/u/${token}`;
 export const oneClickUrl = (token: string) => `${env.appUrl}/api/unsubscribe/${token}`;
 
-export const BADGE_HTML = `
+export const badgeHtml = (ref?: string | null) => `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px">
   <tr><td align="center">
-    <a href="https://mail.deskfrog.studio/?ref=badge" style="display:inline-block;padding:6px 12px;border-radius:999px;background:#ECFDF3;color:#0F5132;font:600 12px/1.4 Inter,Arial,sans-serif;text-decoration:none">
+    <a href="${env.appUrl}/?ref=${encodeURIComponent(ref || "badge")}" style="display:inline-block;padding:6px 12px;border-radius:999px;background:#ECFDF3;color:#0F5132;font:600 12px/1.4 Inter,Arial,sans-serif;text-decoration:none">
       🐸 Sent with Desk Frog Mail
     </a>
   </td></tr>
 </table>`;
+export const BADGE_HTML = badgeHtml();
 
 /**
  * Compliance footer: sender identification + working unsubscribe (Spam Act 2003),
  * plus the free-plan badge.
  */
-export function footerHtml(opts: { senderName: string; senderAddress?: string | null; unsubToken: string; badge: boolean }) {
+export type FooterOpts = {
+  senderName: string;
+  senderAddress?: string | null;
+  unsubToken: string;
+  badge: boolean;
+  /** "You are receiving this email because…" (per list). */
+  reminder?: string | null;
+  referralCode?: string | null;
+};
+
+export function footerHtml(opts: FooterOpts) {
   const addr = opts.senderAddress ? `<br>${escapeHtml(opts.senderAddress)}` : "";
+  const why = opts.reminder ? `${escapeHtml(opts.reminder)}<br>` : "";
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:32px;border-top:1px solid #E5E7EB">
   <tr><td align="center" style="padding:16px 12px;font:12px/1.6 Inter,Arial,sans-serif;color:#6B7280">
-    You're receiving this from ${escapeHtml(opts.senderName)}.${addr}<br>
+    ${why}You're receiving this from ${escapeHtml(opts.senderName)}.${addr}<br>
     <a href="${unsubscribeUrl(opts.unsubToken)}" style="color:#0F5132">Unsubscribe</a>
   </td></tr>
-</table>${opts.badge ? BADGE_HTML : ""}`;
+</table>${opts.badge ? badgeHtml(opts.referralCode) : ""}`;
 }
 
-export function footerText(opts: { senderName: string; senderAddress?: string | null; unsubToken: string; badge: boolean }) {
+export function footerText(opts: FooterOpts) {
   return [
     "",
     "--",
+    opts.reminder ?? "",
     `You're receiving this from ${opts.senderName}.`,
     opts.senderAddress ?? "",
     `Unsubscribe: ${unsubscribeUrl(opts.unsubToken)}`,
-    opts.badge ? "Sent with Desk Frog Mail — https://mail.deskfrog.studio" : "",
+    opts.badge ? `Sent with Desk Frog Mail — ${env.appUrl}/?ref=${opts.referralCode || "badge"}` : "",
   ]
     .filter((l, i) => l !== "" || i < 2)
     .join("\n");

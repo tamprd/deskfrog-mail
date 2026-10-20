@@ -6,6 +6,7 @@ import { admin } from "@/lib/supabase/admin";
 import { isDesign, type Brand, type Design } from "@/lib/email/design";
 import { renderDesign } from "@/lib/email/render";
 import { footerHtml, footerText, htmlToText, merge, withFooter } from "@/lib/render";
+import { footerFor } from "@/lib/footer";
 import { sendEmail } from "@/lib/ses";
 import { remainingSends, resolveFrom } from "@/lib/workspace";
 import { aiUsage, withCredit } from "@/lib/ai/credits";
@@ -45,7 +46,7 @@ export async function previewDesign(design: Design, fromName: string) {
   return {
     html: withFooter(
       merge(html, sample),
-      footerHtml({ senderName: fromName || workspace.name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required }),
+      footerHtml({ senderName: fromName || workspace.name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required, referralCode: workspace.referral_code }),
     ),
   };
 }
@@ -57,7 +58,7 @@ export async function sendTest(campaignId: string, design: Design, subject: stri
   if (!isDesign(design)) return { error: "Invalid design" };
   const { data: c } = await admin()
     .from("campaigns")
-    .select("from_name, from_email")
+    .select("from_name, from_email, list_id")
     .eq("id", campaignId)
     .eq("workspace_id", workspace.id)
     .maybeSingle();
@@ -67,7 +68,7 @@ export async function sendTest(campaignId: string, design: Design, subject: stri
   try {
     const { from, replyTo } = await resolveFrom(workspace, c.from_name, c.from_email);
     const sample = { email: user.email, first_name: "Alex", last_name: "Sample" };
-    const footer = { senderName: c.from_name, senderAddress: workspace.sender_address, unsubToken: "test", badge: workspace.plan.badge_required };
+    const footer = await footerFor(workspace, c, "test");
     const rendered = merge(await renderDesign(design, await brandOf(workspace.id)), sample);
     await sendEmail({
       from,
@@ -174,7 +175,7 @@ export async function saveSource(campaignId: string, content: string, subject: s
 export async function previewSource(content: string, format: "html" | "text", fromName: string) {
   const { workspace, user } = await requireSession();
   const sample = { email: user.email ?? "you@example.com", first_name: "Alex", last_name: "Sample" };
-  const footer = { senderName: fromName || workspace.name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required };
+  const footer = { senderName: fromName || workspace.name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required, referralCode: workspace.referral_code };
   if (format === "text") return { text: merge(content, sample, true) + footerText(footer) };
   return { html: withFooter(merge(content, sample), footerHtml(footer)) };
 }
@@ -184,7 +185,7 @@ export async function sendTestSource(campaignId: string, content: string, subjec
   if (!user.email) return { error: "Your account has no email address." };
   const { data: c } = await admin()
     .from("campaigns")
-    .select("from_name, from_email, format")
+    .select("from_name, from_email, format, list_id")
     .eq("id", campaignId)
     .eq("workspace_id", workspace.id)
     .maybeSingle();
@@ -194,7 +195,7 @@ export async function sendTestSource(campaignId: string, content: string, subjec
   try {
     const { from, replyTo } = await resolveFrom(workspace, c.from_name, c.from_email);
     const sample = { email: user.email, first_name: "Alex", last_name: "Sample" };
-    const footer = { senderName: c.from_name, senderAddress: workspace.sender_address, unsubToken: "test", badge: workspace.plan.badge_required };
+    const footer = await footerFor(workspace, c, "test");
     const isText = c.format === "text";
     await sendEmail({
       from,

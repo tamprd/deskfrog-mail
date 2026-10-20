@@ -69,7 +69,7 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
           <ul className="mt-3 divide-y divide-line text-sm">
             {lists?.length ? lists.map((l) => (
               <li key={l.id} className="flex justify-between py-2">
-                <span>{l.name}</span>
+                <Link href={`/app/contacts/lists/${l.id}`} className="font-medium hover:underline">{l.name}</Link>
                 <span className="text-muted tabular-nums">{(l.members as { count: number }[])[0]?.count ?? 0}</span>
               </li>
             )) : <li className="py-2 text-muted">No lists yet.</li>}

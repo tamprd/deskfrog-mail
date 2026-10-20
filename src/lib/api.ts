@@ -68,10 +68,11 @@ export async function authenticate(req: NextRequest): Promise<ApiContext> {
   const db = admin();
   const { data } = await db
     .from("api_keys")
-    .select("id, workspace_id, revoked_at, last_used_at")
+    .select("id, workspace_id, revoked_at, last_used_at, expires_at")
     .eq("key_hash", hashKey(key))
     .maybeSingle();
   if (!data || data.revoked_at) throw new ApiError(401, "unauthorized", "Missing or invalid API key");
+  if (data.expires_at && new Date(data.expires_at) < new Date()) throw new ApiError(401, "key_expired", "This API key has expired");
 
   // Cheap last-used tracking: at most once a minute.
   if (!data.last_used_at || Date.now() - new Date(data.last_used_at).getTime() > 60_000) {

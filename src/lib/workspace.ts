@@ -20,6 +20,8 @@ export type Workspace = {
   status: "active" | "paused" | "suspended";
   status_reason: string | null;
   sender_address: string | null;
+  referral_code: string | null;
+  paused_at: string | null;
   created_at: string;
   plan: Plan;
 };
@@ -31,7 +33,7 @@ const NEW_ACCOUNT_DAILY_CAP = 100;
 export async function getWorkspace(id: string): Promise<Workspace> {
   const { data, error } = await admin()
     .from("workspaces")
-    .select("id, name, slug, status, status_reason, sender_address, created_at, plan:plans(*)")
+    .select("id, name, slug, status, status_reason, sender_address, referral_code, paused_at, created_at, plan:plans(*)")
     .eq("id", id)
     .single();
   if (error || !data) throw new ApiError(404, "not_found", "Workspace not found");
@@ -52,7 +54,8 @@ export async function usage(workspaceId: string) {
   const [day, month, contacts] = await Promise.all([
     db.from("usage_daily").select("sends").eq("workspace_id", workspaceId).eq("day", brisbaneDay()).maybeSingle(),
     db.from("usage_monthly").select("sends").eq("workspace_id", workspaceId).eq("period", brisbaneMonth()).maybeSingle(),
-    db.from("contacts").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId),
+    // Like other providers, only subscribed contacts count towards the plan limit.
+    db.from("contacts").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).eq("status", "subscribed"),
   ]);
   // Queued-but-unsent messages count against the allowance too.
   const { count: queued } = await db
@@ -87,7 +90,7 @@ export async function assertContactCapacity(ws: Workspace, adding: number) {
     throw new ApiError(
       402,
       "contact_limit",
-      `The ${ws.plan.name} plan allows ${ws.plan.contact_limit} contacts (you have ${u.contacts}). Upgrade to add more.`,
+      `The ${ws.plan.name} plan allows ${ws.plan.contact_limit.toLocaleString("en-AU")} subscribed contacts (you have ${u.contacts.toLocaleString("en-AU")}). Upgrade to add more.`,
     );
   }
 }

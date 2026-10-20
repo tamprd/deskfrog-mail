@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { processQueue } from "@/lib/queue";
 import { deliverWebhooks } from "@/lib/webhooks";
 import { releaseScheduled } from "@/lib/campaigns";
+import { runNotifications } from "@/lib/notify";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,7 +21,8 @@ async function run(req: NextRequest) {
   await releaseScheduled();
   const queue = await processQueue(45_000);
   const webhooks = await deliverWebhooks();
-  return NextResponse.json({ ok: true, queue, webhooks });
+  const notifications = await runNotifications().catch((e) => ({ error: String(e) }));
+  return NextResponse.json({ ok: true, queue, webhooks, notifications });
 }
 
 export const GET = run;

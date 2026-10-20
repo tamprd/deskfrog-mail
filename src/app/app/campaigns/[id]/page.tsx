@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { footerHtml, footerText, merge, withFooter } from "@/lib/render";
+import { footerFor } from "@/lib/footer";
 import { remainingSends } from "@/lib/workspace";
 import { ActionForm, Submit } from "@/components/action-form";
 import { StatusPill } from "@/components/status";
@@ -55,10 +56,8 @@ export default async function CampaignPage({
 
   // Preview with sample merge data
   const sample = { email: user.email ?? "you@example.com", first_name: "Alex", last_name: "Sample", unsub_token: "preview" };
-  const preview = withFooter(
-    merge(c.html, sample),
-    footerHtml({ senderName: c.from_name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required }),
-  );
+  const footer = await footerFor(workspace, c, "preview");
+  const preview = withFooter(merge(c.html, sample), footerHtml(footer));
 
   // Rough audience size for the confirm step
   let audience = 0;
@@ -142,7 +141,7 @@ export default async function CampaignPage({
             <p><span className="text-muted">To:</span> {c.list?.name ?? "All subscribed contacts"}{c.tag_filter?.length ? ` tagged ${c.tag_filter.join(", ")}` : ""}</p>
           </div>
           {c.format === "text" ? (
-            <pre className="h-[560px] overflow-auto whitespace-pre-wrap bg-white p-6 font-mono text-sm">{merge(c.text ?? "", sample, true) + footerText({ senderName: c.from_name, senderAddress: workspace.sender_address, unsubToken: "preview", badge: workspace.plan.badge_required })}</pre>
+            <pre className="h-[560px] overflow-auto whitespace-pre-wrap bg-white p-6 font-mono text-sm">{merge(c.text ?? "", sample, true) + footerText(footer)}</pre>
           ) : (
             <iframe title="Email preview" srcDoc={preview} sandbox="" className="h-[560px] w-full bg-white" />
           )}

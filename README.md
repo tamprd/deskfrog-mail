@@ -132,6 +132,16 @@ Set `ANTHROPIC_API_KEY` in Vercel. Code is in `src/lib/ai/`.
 - AI output is sanitised (allow-listed tags, safe links only) before it reaches a design.
 - **Credits**: each request uses one. Monthly limits per plan are in `src/lib/ai/credits.ts` (Free 10 / Tadpole 100 / Bullfrog 300 / King Frog 1000). Credits are refunded if a call fails.
 
+## Account (Settings)
+
+`/app/settings/*` mirrors the familiar layout: Overview · Settings ▾ (Details, Users, Security, Notifications, Manage my data) · Billing ▾ (Plan, Billing history, Manage my plan) · Domains · Extras ▾ (API keys, Referral program) · Integrations · Plans.
+- Plan limits count **subscribed** contacts only.
+- Each list has its own footer postal address, from details and permission reminder (`/app/contacts/lists/:id`).
+- Data export: `/app/settings/data/export` returns a zip of CSVs (one per hour).
+- Notifications: the worker sends a 24-hour campaign report and a weekly abandoned-draft reminder (`src/lib/notify.ts`).
+- Referrals: `/?ref=<code>` sets a 60-day cookie; onboarding records `referred_by` and $20 pending credit for both sides.
+- API keys have editable labels and optional expiry.
+
 ## Not built yet
 - Stripe billing / plan upgrades (the plan is changed in the DB for now)
 - Double opt-in signup forms and automations

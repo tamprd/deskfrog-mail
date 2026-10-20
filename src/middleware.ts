@@ -3,6 +3,13 @@ import { createServerClient } from "@supabase/ssr";
 
 /** Keep the Supabase session fresh and gate /app behind sign-in. */
 export async function middleware(req: NextRequest) {
+  // Referral links (?ref=code) are remembered for 60 days so the sign-up can be credited.
+  const ref = req.nextUrl.searchParams.get("ref");
+  if (req.nextUrl.pathname === "/") {
+    const res = NextResponse.next({ request: req });
+    if (ref && /^[a-f0-9]{8}$/.test(ref)) res.cookies.set("df_ref", ref, { maxAge: 60 * 86400, sameSite: "lax", httpOnly: true, path: "/" });
+    return res;
+  }
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
@@ -27,4 +34,4 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ["/app/:path*", "/editor/:path*", "/login"] };
+export const config = { matcher: ["/", "/app/:path*", "/editor/:path*", "/login"] };

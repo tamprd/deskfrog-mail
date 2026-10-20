@@ -56,11 +56,11 @@ export default async function NewCampaign({ searchParams }: { searchParams: Prom
             <select className="input" id="from_email" name="from_email" required defaultValue={senders[0]?.email}>
               {senders.map((x) => <option key={x.email} value={x.email}>{x.name ? `${x.name} <${x.email}>` : x.email}</option>)}
             </select>
-            <p className="mt-1 text-xs"><Link href="/app/settings?tab=domains#senders" className="font-semibold text-frog-700 hover:underline">+ Add a sender address</Link></p>
+            <p className="mt-1 text-xs"><Link href="/app/settings/domains#senders" className="font-semibold text-frog-700 hover:underline">+ Add a sender address</Link></p>
             {shared && sharedFrom && (
               <p className="mt-1 text-xs text-muted">
                 Sends from {sharedFrom} with replies to this address.
-                {workspace.plan.custom_domain && <> <Link href="/app/settings?tab=domains#domains" className="font-semibold text-frog-700 hover:underline">Connect your domain</Link> to send as yourself and land in inboxes more reliably.</>}
+                {workspace.plan.custom_domain && <> <Link href="/app/settings/domains#domains" className="font-semibold text-frog-700 hover:underline">Connect your domain</Link> to send as yourself and land in inboxes more reliably.</>}
               </p>
             )}
             {!shared && <p className="mt-1 text-xs text-muted">Use an address at {domains.join(" or ")} to send as yourself. Any other address sends via Desk Frog with replies to you.</p>}
