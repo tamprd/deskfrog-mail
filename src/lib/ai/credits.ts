@@ -2,7 +2,7 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 
 /** Monthly AI generations included per plan. */
-export const AI_LIMITS: Record<string, number> = { free: 10, starter: 100, growth: 300, pro: 1000 };
+export const AI_LIMITS: Record<string, number> = { free: 10, starter: 100, club: 200, growth: 300, pro: 1000 };
 export const aiLimit = (planId: string) => AI_LIMITS[planId] ?? 10;
 
 export class AiLimitError extends Error {}
