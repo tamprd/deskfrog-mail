@@ -41,7 +41,7 @@ export async function startImport(lists: { key: string; name: string; reminder?:
     else {
       const { data, error } = await db
         .from("lists")
-        .insert({ workspace_id: workspace.id, name, description: "Imported from Mailchimp", double_opt_in: false, permission_reminder: l.reminder?.trim() || null })
+        .insert({ workspace_id: workspace.id, name, description: "Imported", double_opt_in: false, permission_reminder: l.reminder?.trim() || null })
         .select("id")
         .single();
       if (error) return { error: error.message };
@@ -78,7 +78,7 @@ export async function importChunk(listId: string, rows: Row[]) {
         fields: { ...r.fields, ...(e?.fields ?? {}) },
         tags: [...new Set([...(e?.tags ?? []), ...r.tags])],
         status,
-        consent_source: "mailchimp_import",
+        consent_source: "provider_import",
         consented_at: r.optin_at ?? now,
         unsubscribed_at: status === "unsubscribed" ? r.changed_at ?? now : null,
       };
@@ -110,7 +110,7 @@ export async function importChunk(listId: string, rows: Row[]) {
 export async function importTemplate(name: string, html: string) {
   const { workspace } = await requireSession();
   if (html.length > 2_000_000) return { error: "Template too large" };
-  const { error } = await admin().from("templates").insert({ workspace_id: workspace.id, name: `${name} (Mailchimp)`.slice(0, 120), html });
+  const { error } = await admin().from("templates").insert({ workspace_id: workspace.id, name: `${name} (imported)`.slice(0, 120), html });
   return error ? { error: error.message } : { ok: true };
 }
 

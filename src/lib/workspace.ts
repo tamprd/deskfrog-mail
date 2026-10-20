@@ -113,7 +113,7 @@ export async function resolveFrom(ws: Workspace, fromName: string, fromEmail: st
     }
     // Not verified (or not added): fall back below.
   }
-  // Address verified with Amazon, and its domain doesn't forbid others sending as it → send as them (like Mailchimp).
+  // Address verified with Amazon, and its domain doesn't forbid others sending as it → send as them (like other providers).
   const { data: sender } = await admin()
     .from("sender_addresses")
     .select("ses_verified_at")

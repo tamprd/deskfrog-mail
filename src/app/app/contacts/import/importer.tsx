@@ -24,7 +24,7 @@ async function shrink(bytes: Uint8Array, type: string): Promise<Blob> {
   }
 }
 
-export function MailchimpImporter({ plan, limit, current }: { plan: string; limit: number; current: number }) {
+export function ProviderImporter({ plan, limit, current }: { plan: string; limit: number; current: number }) {
   const [step, setStep] = useState<Step>("pick");
   const [data, setData] = useState<McExport | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -48,7 +48,7 @@ export function MailchimpImporter({ plan, limit, current }: { plan: string; limi
     setError(null);
     try {
       const parsed = parseMailchimpZip(new Uint8Array(await file.arrayBuffer()));
-      if (!parsed.lists.length) throw new Error("No audiences found. Use the zip from Mailchimp → Account → Manage my data → Export.");
+      if (!parsed.lists.length) throw new Error("No audiences found in that zip. Export your account data from your current provider and try again.");
       setData(parsed);
       setNames(Object.fromEntries(parsed.lists.map((l) => [l.key, l.name.replace(/^Vip /, "VIP ")])));
       setStep("review");
@@ -107,14 +107,14 @@ export function MailchimpImporter({ plan, limit, current }: { plan: string; limi
     return (
       <section className="card p-6">
         <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
-          <li>In Mailchimp, go to <strong className="text-ink">Account → Settings → Manage my data</strong>.</li>
+          <li>In your current email provider, find the account data export (usually under <strong className="text-ink">Account → Settings → Manage my data</strong>).</li>
           <li>Tick <strong className="text-ink">Audiences</strong>, <strong className="text-ink">Templates</strong> and <strong className="text-ink">Gallery</strong>, choose <strong className="text-ink">All time</strong>, and export.</li>
-          <li>When Mailchimp emails you the zip, drop it here. Nothing is imported until you confirm.</li>
+          <li>When the zip arrives, drop it here. Nothing is imported until you confirm.</li>
         </ol>
         <label className="mt-5 grid cursor-pointer place-items-center rounded-xl border-2 border-dashed border-line p-10 text-center hover:border-frog hover:bg-frog-50">
           <input type="file" accept=".zip,application/zip" className="sr-only" onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
           <span className="text-3xl" aria-hidden>📦</span>
-          <span className="mt-2 font-semibold">Choose your Mailchimp export (.zip)</span>
+          <span className="mt-2 font-semibold">Choose your export (.zip)</span>
           <span className="text-xs text-muted">Read on your computer first; large exports are fine.</span>
         </label>
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}
