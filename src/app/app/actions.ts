@@ -187,13 +187,52 @@ export async function duplicateCampaign(formData: FormData) {
   const db = admin();
   const { data: c } = await db
     .from("campaigns")
-    .select("name, subject, from_name, from_email, reply_to, html, text, design, list_id, tag_filter")
+    .select("name, subject, from_name, from_email, reply_to, html, text, design, format, list_id, tag_filter")
     .eq("id", String(formData.get("id")))
     .eq("workspace_id", workspace.id)
     .maybeSingle();
   if (!c) return;
   const { data } = await db.from("campaigns").insert({ ...c, name: `${c.name} (copy)`, workspace_id: workspace.id }).select("id").single();
   if (data) redirect(`/editor/${data.id}`);
+}
+
+/** Change a draft's sender, audience, name and subject. */
+export async function updateCampaignDetails(_prev: unknown, formData: FormData) {
+  const { workspace, user } = await requireSession();
+  const db = admin();
+  const f = (k: string) => String(formData.get(k) ?? "").trim();
+  const id = f("id");
+  const { data: c } = await db.from("campaigns").select("status, resend_of").eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
+  if (!c) return { error: "Campaign not found." };
+  if (c.status !== "draft") return { error: "Only drafts can be changed." };
+  if (!f("name") || !f("from_name") || !f("from_email")) return { error: "Fill in the name and sender details." };
+  const { isAllowedSender } = await import("@/lib/senders");
+  if (!(await isAllowedSender(workspace.id, f("from_email"), user.email))) return { error: "Confirm that email address first (Settings → Domains)." };
+  const replyTo = f("reply_to");
+  if (replyTo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) return { error: "That reply-to address doesn't look right." };
+  const update: Record<string, unknown> = {
+    name: f("name").slice(0, 200),
+    subject: f("subject").slice(0, 300),
+    from_name: f("from_name").slice(0, 120),
+    from_email: f("from_email").toLowerCase(),
+    // Empty = worked out again at send time from the sender address.
+    reply_to: replyTo ? replyTo.toLowerCase() : null,
+    updated_at: new Date().toISOString(),
+  };
+  if (!c.resend_of) {
+    const listId = f("list_id");
+    if (listId) {
+      const { data: l } = await db.from("lists").select("id").eq("id", listId).eq("workspace_id", workspace.id).maybeSingle();
+      if (!l) return { error: "That list no longer exists." };
+    }
+    update.list_id = listId || null;
+    const tags = f("tags").split(",").map((t) => t.trim()).filter(Boolean);
+    update.tag_filter = tags;
+  }
+  const { error } = await db.from("campaigns").update(update).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/app/campaigns/${id}`);
+  return { ok: "Saved ✓" };
 }
 
 export async function deleteTemplate(formData: FormData) {

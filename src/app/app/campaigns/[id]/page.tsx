@@ -7,7 +7,8 @@ import { footerFor } from "@/lib/footer";
 import { remainingSends } from "@/lib/workspace";
 import { ActionForm, Submit } from "@/components/action-form";
 import { StatusPill } from "@/components/status";
-import { createResend, deleteDraft, duplicateCampaign, sendCampaign } from "../../actions";
+import { createResend, deleteDraft, duplicateCampaign, sendCampaign, updateCampaignDetails } from "../../actions";
+import { allowedSenders } from "@/lib/senders";
 import { isFilter } from "@/lib/recipients";
 import { Recipients } from "./recipients";
 import { Links } from "./links";
@@ -85,6 +86,12 @@ export default async function CampaignPage({
     remaining = await remainingSends(workspace);
   }
 
+  const [{ data: allLists }, senderInfo] = draft
+    ? await Promise.all([db.from("lists").select("id, name").eq("workspace_id", workspace.id).order("name"), allowedSenders(workspace.id, user.email)])
+    : [{ data: null }, null];
+  const senderOptions = senderInfo ? [...senderInfo.senders] : [];
+  if (draft && c.from_email && !senderOptions.some((x) => x.email === c.from_email)) senderOptions.unshift({ email: c.from_email, name: null } as (typeof senderOptions)[number]);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -155,11 +162,43 @@ export default async function CampaignPage({
               <h2 className="font-semibold">Ready to send?</h2>
               <p className="mt-1 text-sm text-muted">
                 About <strong className="text-ink">{audience.toLocaleString("en-AU")}</strong> {c.resend_of ? "people didn't open the original." : "subscribed contacts match."}
-                You can send <strong className="text-ink">{remaining.toLocaleString("en-AU")}</strong> more today on your plan.
+                You can send <strong className="text-ink">{remaining.toLocaleString("en-AU")}</strong> more this month on your plan.
               </p>
               {audience > remaining && <p className="mt-2 text-sm text-warn">This is over your remaining allowance — the send will be refused.</p>}
               <Submit className="btn-secondary mt-4 w-full" pending="Queuing…">Send now</Submit>
             </ActionForm>
+            <details className="card group p-5 text-sm" open={false}>
+              <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">
+                Sender &amp; audience <span className="text-frog-700 group-open:hidden">✎ Edit</span><span className="hidden text-muted group-open:inline">Close</span>
+              </summary>
+              <ActionForm action={updateCampaignDetails} className="mt-4 space-y-3">
+                <input type="hidden" name="id" value={c.id} />
+                <div><label className="label" htmlFor="cd_name">Campaign name</label><input id="cd_name" name="name" className="input" defaultValue={c.name} required /></div>
+                <div><label className="label" htmlFor="cd_subject">Subject line</label><input id="cd_subject" name="subject" className="input" defaultValue={c.subject ?? ""} /></div>
+                <div><label className="label" htmlFor="cd_from_name">From name</label><input id="cd_from_name" name="from_name" className="input" defaultValue={c.from_name} required /></div>
+                <div>
+                  <label className="label" htmlFor="cd_from_email">From email</label>
+                  <select id="cd_from_email" name="from_email" className="input" defaultValue={c.from_email}>
+                    {senderOptions.map((x) => <option key={x.email} value={x.email}>{x.name ? `${x.name} <${x.email}>` : x.email}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs"><Link href="/app/settings/domains#senders" className="font-semibold text-frog-700 hover:underline">+ Add a sender address</Link></p>
+                </div>
+                <div><label className="label" htmlFor="cd_reply_to">Reply-to <span className="font-normal text-muted">(optional)</span></label><input id="cd_reply_to" name="reply_to" type="email" className="input" defaultValue={c.reply_to ?? ""} placeholder="Same as from email" /></div>
+                {!c.resend_of && (
+                  <>
+                    <div>
+                      <label className="label" htmlFor="cd_list">Send to</label>
+                      <select id="cd_list" name="list_id" className="input" defaultValue={c.list_id ?? ""}>
+                        <option value="">All subscribed contacts</option>
+                        {allLists?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="label" htmlFor="cd_tags">Only contacts tagged <span className="font-normal text-muted">(optional)</span></label><input id="cd_tags" name="tags" className="input" defaultValue={(c.tag_filter ?? []).join(", ")} /></div>
+                  </>
+                )}
+                <Submit pending="Saving…">Save</Submit>
+              </ActionForm>
+            </details>
             <form action={deleteDraft}>
               <input type="hidden" name="id" value={c.id} />
               <button className="btn-danger w-full">Delete draft</button>
