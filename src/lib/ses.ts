@@ -9,6 +9,7 @@ import {
   SendCustomVerificationEmailCommand,
   CreateCustomVerificationEmailTemplateCommand,
   UpdateCustomVerificationEmailTemplateCommand,
+  PutEmailIdentityFeedbackAttributesCommand,
 } from "@aws-sdk/client-sesv2";
 import { verifyTemplate } from "@/lib/email/verify-template";
 import { env } from "@/lib/env";
@@ -61,6 +62,21 @@ export function isTransient(err: unknown) {
   return Boolean(e?.$retryable) || e?.name === "TooManyRequestsException" || e?.name === "ThrottlingException" || code >= 500;
 }
 
+/**
+ * Stop Amazon emailing bounce/complaint notices to the sender's own inbox.
+ * We already get every bounce and complaint through SNS and handle them in the app.
+ * Best-effort: needs ses:PutEmailIdentityFeedbackAttributes.
+ */
+export async function stopFeedbackForwarding(identity: string) {
+  try {
+    await ses().send(new PutEmailIdentityFeedbackAttributesCommand({ EmailIdentity: identity, EmailForwardingEnabled: false }));
+    return true;
+  } catch (err) {
+    console.warn("feedback forwarding not disabled for", identity, (err as Error).name, (err as Error).message);
+    return false;
+  }
+}
+
 /** Register a domain with SES (Easy DKIM + custom MAIL FROM) and return the DNS records the customer must add. */
 export async function createDomainIdentity(domain: string) {
   try {
@@ -76,6 +92,7 @@ export async function createDomainIdentity(domain: string) {
   } catch {
     /* needs ses:PutEmailIdentityMailFromAttributes; DKIM alone still works */
   }
+  await stopFeedbackForwarding(domain);
   return domainStatus(domain);
 }
 
@@ -154,7 +171,9 @@ export async function requestEmailVerification(email: string, { resend = false }
 export async function isEmailVerified(email: string) {
   try {
     const id = await ses().send(new GetEmailIdentityCommand({ EmailIdentity: email }));
-    return id.VerifiedForSendingStatus === true;
+    const ok = id.VerifiedForSendingStatus === true;
+    if (ok && id.FeedbackForwardingStatus !== false) await stopFeedbackForwarding(email);
+    return ok;
   } catch {
     return false;
   }
