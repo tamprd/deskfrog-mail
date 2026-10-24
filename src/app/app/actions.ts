@@ -409,19 +409,33 @@ export async function addDomain(_prev: unknown, formData: FormData) {
 }
 
 /** Re-check DNS verification for a domain. */
-export async function checkDomain(formData: FormData) {
+export async function checkDomain(_prev: unknown, formData: FormData) {
   const { workspace } = await requireSession();
   const db = admin();
-  const { data: d } = await db.from("sending_domains").select("id, domain").eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id).maybeSingle();
-  if (!d) return;
+  const { data: d } = await db.from("sending_domains").select("id, domain, dns_records").eq("id", String(formData.get("id"))).eq("workspace_id", workspace.id).maybeSingle();
+  if (!d) return { error: "That domain was removed." };
+  let verified = false;
   try {
     const { domainStatus } = await import("@/lib/ses");
     const s = await domainStatus(d.domain);
+    verified = s.verified;
     await db.from("sending_domains").update({ dns_records: s.records, status: s.verified ? "verified" : s.dkimStatus === "FAILED" ? "failed" : "pending", verified_at: s.verified ? new Date().toISOString() : null }).eq("id", d.id);
-  } catch {
-    /* SES not reachable; leave as is */
+    d.dns_records = s.records;
+  } catch (e) {
+    console.warn("domainStatus failed", (e as Error).message);
   }
   revalidatePath("/app/settings", "layout");
+  if (verified) return { ok: `${d.domain} is connected ✓` };
+  const { checkRecords, hostPart } = await import("@/lib/dnscheck");
+  const checks = await checkRecords(d.domain, d.dns_records as { type: string; name: string; value: string }[]);
+  const doubled = checks.filter((c) => c.state === "doubled");
+  const missing = checks.filter((c) => c.state === "missing" || c.state === "wrong");
+  if (doubled.length)
+    return {
+      error: `${doubled.length} record${doubled.length > 1 ? "s have" : " has"} ${d.domain} on the end twice (your DNS host adds it for you). Edit ${doubled.length > 1 ? "them" : "it"} so the Name is just: ${doubled.map((c) => hostPart(c.name, d.domain)).join(", ")}`,
+    };
+  if (missing.length) return { error: `Still can't see: ${missing.map((c) => `${c.type} ${hostPart(c.name, d.domain)}`).join(", ")}. New records can take up to an hour to show.` };
+  return { ok: "All records found ✓ Amazon usually confirms within the hour; this page updates by itself." };
 }
 
 export async function removeDomain(formData: FormData) {

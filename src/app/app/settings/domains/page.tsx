@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { admin } from "@/lib/supabase/admin";
 import { ActionForm, Submit } from "@/components/action-form";
+import { hostPart } from "@/lib/dnscheck";
 import { addDomain, addSender, checkDomain, checkSender, removeDomain, removeSender, resendSender } from "../../actions";
 
 export const metadata = { title: "Domains · Desk Frog Mail" };
@@ -91,7 +92,7 @@ export default async function Domains() {
                     </p>
                     <div className="flex gap-3">
                       {d.status !== "verified" && (
-                        <form action={checkDomain}><input type="hidden" name="id" value={d.id} /><button className="btn-secondary py-1 text-xs">Check now</button></form>
+                        <ActionForm action={checkDomain} className="flex max-w-md flex-col items-end gap-1 text-right text-xs"><input type="hidden" name="id" value={d.id} /><Submit className="btn-secondary py-1 text-xs" pending="Checking…">Check now</Submit></ActionForm>
                       )}
                       <form action={removeDomain}><input type="hidden" name="id" value={d.id} /><button className="text-xs text-muted underline hover:text-danger">Remove</button></form>
                     </div>
@@ -106,13 +107,13 @@ export default async function Domains() {
                           {(d.dns_records as { type: string; name: string; value: string }[]).map((r) => (
                             <tr key={`${r.type}:${r.name}`} className="border-t border-line align-top">
                               <td className="py-2 pr-3">{r.type}</td>
-                              <td className="select-all break-all py-2 pr-3">{r.name}</td>
+                              <td className="break-all py-2 pr-3"><span className="select-all font-semibold text-ink">{hostPart(r.name, d.domain)}</span></td>
                               <td className="select-all break-all py-2">{r.value}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                      <p className="mt-2 text-xs text-muted">Some DNS hosts add your domain automatically. If so, enter only the part before <span className="font-mono">.{d.domain}</span> as the name.
+                      <p className="mt-2 text-xs text-muted">Copy the Name exactly as shown; your DNS host adds <span className="font-mono">.{d.domain}</span> on the end for you (GoDaddy, Crazy Domains, Cloudflare and most others do).
                         Skip the <span className="font-mono">_dmarc</span> record if your domain already has one; two DMARC records break each other.</p>
                     </div>
                   )}
