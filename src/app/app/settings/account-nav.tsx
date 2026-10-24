@@ -29,6 +29,7 @@ const ITEMS: Item[] = [
   {
     label: "Extras",
     children: [
+      { label: "Signup forms", href: "/app/settings/forms" },
       { label: "API keys", href: "/app/settings/api-keys" },
       { label: "Referral program", href: "/app/settings/referrals" },
     ],
