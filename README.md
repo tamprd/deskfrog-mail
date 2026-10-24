@@ -3,7 +3,7 @@
 Email marketing made simple. Free with the Desk Frog badge, paid plans remove it.
 Next.js 15 · Supabase (Postgres + Auth) · Amazon SES.
 
-Dashboard: `mail.deskfrog.studio` · API: `mail.deskfrog.studio/api/v1`
+Dashboard: `deskfrogmail.com` · API: `deskfrogmail.com/api/v1`
 
 ## How it works
 
@@ -28,14 +28,14 @@ Dashboard user ─────────────────────�
 
 ### 1. Supabase
 Migrations are in `supabase/migrations` (already applied to project `tbvcxjztgvcwifygdcjf`).
-Auth → enable email/password. Set the Site URL to `https://mail.deskfrog.studio`.
+Auth → enable email/password. Set the Site URL to `https://deskfrogmail.com`.
 
 ### 2. Amazon SES (region `ap-southeast-2`)
 1. Verify the shared sending domain (e.g. `send.deskfrogmail.com`). **Not** `deskfrog.studio`, which keeps the studio's mail reputation clean. Add the DKIM CNAMEs, plus SPF/DMARC.
 2. Create a configuration set `deskfrog-mail`:
    - turn on open and click tracking
    - add an event destination → SNS topic, with events Send, Delivery, Bounce, Complaint, Reject, Open, Click, Rendering failure
-3. Subscribe the SNS topic over HTTPS to `https://mail.deskfrog.studio/api/ses/events`. The subscription is confirmed automatically, and signatures are verified.
+3. Subscribe the SNS topic over HTTPS to `https://deskfrogmail.com/api/ses/events`. The subscription is confirmed automatically, and signatures are verified.
 4. Create an IAM user with `ses:SendEmail`, `ses:CreateEmailIdentity` and `ses:GetEmailIdentity`.
 5. **Request production access** (out of the sandbox). Describe the double opt-in, the consent checkbox, the automatic bounce/complaint suppression and auto-pause.
 
@@ -48,7 +48,7 @@ Call `POST /api/cron/worker` with `Authorization: Bearer $CRON_SECRET` every min
 - Supabase `pg_cron` + `pg_net`:
   ```sql
   select cron.schedule('deskfrog-worker', '* * * * *', $$
-    select net.http_post('https://mail.deskfrog.studio/api/cron/worker',
+    select net.http_post('https://deskfrogmail.com/api/cron/worker',
       headers => jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'));
   $$);
   ```
@@ -77,7 +77,7 @@ Merge tags: `{{first_name}}`, `{{last_name}}`, `{{email}}`, any key in `fields`,
 
 ### Example: ArgusIQ syncing an entrant
 ```bash
-curl -X POST https://mail.deskfrog.studio/api/v1/contacts \
+curl -X POST https://deskfrogmail.com/api/v1/contacts \
   -H "Authorization: Bearer $DFM_KEY" -H "Content-Type: application/json" \
   -d '{"email":"jess@example.com","first_name":"Jess","external_id":"argus-member-123",
        "tags":["budget-enduro","2026-season"],"fields":{"class":"Outright","car_number":"42"},
