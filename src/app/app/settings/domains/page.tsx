@@ -13,6 +13,23 @@ export default async function Domains() {
     db.from("sending_domains").select("id, domain, status, dns_records").eq("workspace_id", workspace.id),
     db.from("sender_addresses").select("id, email, name, verified_at, ses_verified_at, sent_at").eq("workspace_id", workspace.id).order("created_at"),
   ]);
+  // Domains waiting on DNS: ask again on each visit so the page updates by itself.
+  const waiting = (domains ?? []).filter((d) => d.status !== "verified").slice(0, 3);
+  if (waiting.length) {
+    try {
+      const { domainStatus } = await import("@/lib/ses");
+      await Promise.all(
+        waiting.map(async (d) => {
+          const s = await domainStatus(d.domain);
+          if (!s.verified) return;
+          await db.from("sending_domains").update({ status: "verified", verified_at: new Date().toISOString(), dns_records: s.records }).eq("id", d.id);
+          d.status = "verified";
+        }),
+      );
+    } catch {
+      /* sending not reachable; show as is */
+    }
+  }
   // Anyone who clicked the link since last visit shows as ready without pressing Check.
   const pending = (senders ?? []).filter((x) => !x.ses_verified_at && x.sent_at).slice(0, 5);
   if (pending.length) {

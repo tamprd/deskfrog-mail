@@ -15,7 +15,7 @@ export function verifyTemplate() {
     `<h1 style="margin:0 0 12px;font-size:22px;color:#0f172a">Confirm your sending address</h1>`,
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6">Someone (hopefully you) added this email address as a sender in Desk Frog Mail, so campaigns can go out from it.</p>`,
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6"><b>Click the link below to confirm.</b> That&#39;s it &#8211; no DNS or technical setup needed.</p>`,
-    `<p style="margin:0;font-size:13px;line-height:1.6;color:#64748b">Our email partner, Amazon Web Services, handles this confirmation, so the link goes through amazonaws.com before bringing you back to Desk Frog Mail.</p>`,
+    `<p style="margin:0;font-size:13px;line-height:1.6;color:#64748b">The link passes through our secure email delivery partner, then brings you back to Desk Frog Mail.</p>`,
     `</td></tr></table>`,
     `</td></tr></table></body></html>`,
   ].join("");

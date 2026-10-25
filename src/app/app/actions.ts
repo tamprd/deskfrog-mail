@@ -379,7 +379,7 @@ export async function createResend(formData: FormData) {
 const DOMAIN_RE = /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.[a-z0-9-]{1,63})+$/;
 const sesNotReady = (e: unknown) =>
   /AWS|credential|SES_|region|Missing env/i.test(String((e as Error)?.message ?? e))
-    ? "Email sending isn't connected yet (Amazon SES setup). Your domain can be added once that's done."
+    ? "Email sending isn't connected yet. Your domain can be added once that's done."
     : String((e as Error)?.message ?? e);
 
 /** Add a sending domain from Settings; returns the DNS records to add. */
@@ -435,7 +435,7 @@ export async function checkDomain(_prev: unknown, formData: FormData) {
       error: `${doubled.length} record${doubled.length > 1 ? "s have" : " has"} ${d.domain} on the end twice (your DNS host adds it for you). Edit ${doubled.length > 1 ? "them" : "it"} so the Name is just: ${doubled.map((c) => hostPart(c.name, d.domain)).join(", ")}`,
     };
   if (missing.length) return { error: `Still can't see: ${missing.map((c) => `${c.type} ${hostPart(c.name, d.domain)}`).join(", ")}. New records can take up to an hour to show.` };
-  return { ok: "All records found ✓ Amazon usually confirms within the hour; this page updates by itself." };
+  return { ok: "All records found ✓ It usually connects within the hour; this page updates by itself." };
 }
 
 export async function removeDomain(formData: FormData) {
@@ -508,7 +508,7 @@ const sesMissing = (e: unknown) =>
     : String((e as Error)?.message ?? e);
 
 const lookFor = (via: "branded" | "amazon") =>
-  via === "branded" ? `an email from Desk Frog Mail ("Confirm your sending address")` : `an email from Amazon Web Services ("Email Address Verification Request")`;
+  via === "branded" ? `an email from Desk Frog Mail ("Confirm your sending address")` : `a confirmation email (subject "Email Address Verification Request")`;
 
 /** Add a sender address. Amazon emails it a confirmation link; once clicked, campaigns can be sent as that address. */
 export async function addSender(_prev: unknown, formData: FormData) {

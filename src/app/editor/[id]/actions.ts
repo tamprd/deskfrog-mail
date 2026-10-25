@@ -84,7 +84,7 @@ export async function sendTest(campaignId: string, design: Design, subject: stri
   } catch (e) {
     const msg = (e as Error).message ?? "";
     if (/Missing environment variable|credential|region/i.test(msg)) {
-      return { error: "Email sending isn't set up yet (Amazon SES keys missing)." };
+      return { error: "Email sending isn't set up yet." };
     }
     return { error: msg || "Couldn't send the test." };
   }
@@ -210,7 +210,7 @@ export async function sendTestSource(campaignId: string, content: string, subjec
     return { ok: `Test sent to ${user.email}` };
   } catch (e) {
     const msg = (e as Error).message ?? "";
-    if (/Missing environment variable|credential|region/i.test(msg)) return { error: "Email sending isn't set up yet (Amazon SES keys missing)." };
+    if (/Missing environment variable|credential|region/i.test(msg)) return { error: "Email sending isn't set up yet." };
     return { error: msg || "Couldn't send the test." };
   }
 }
