@@ -115,7 +115,7 @@ export default async function Domains() {
                     </div>
                   </div>
                   {d.status === "verified" ? (
-                    <p className="mt-1 text-muted">Ready. Use any address <span className="font-medium text-ink">@{d.domain}</span> as the From email on your campaigns.</p>
+                    <p className="mt-1 text-muted">Ready. Add any address <span className="font-medium text-ink">@{d.domain}</span> under Sender addresses above (no confirmation needed) and pick it as the From email on your campaigns.</p>
                   ) : (
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full min-w-[560px] text-xs">

@@ -510,7 +510,7 @@ const sesMissing = (e: unknown) =>
 const lookFor = (via: "branded" | "amazon") =>
   via === "branded" ? `an email from Desk Frog Mail ("Confirm your sending address")` : `a confirmation email (subject "Email Address Verification Request")`;
 
-/** Add a sender address. Amazon emails it a confirmation link; once clicked, campaigns can be sent as that address. */
+/** Add a sender address. Addresses at a connected domain are ready at once; others get a confirmation link; once clicked, campaigns can be sent as that address. */
 export async function addSender(_prev: unknown, formData: FormData) {
   const { workspace, role } = await requireSession();
   if (!["owner", "admin"].includes(role)) return { error: "Only admins can add sender addresses." };
@@ -522,6 +522,14 @@ export async function addSender(_prev: unknown, formData: FormData) {
   if ((count ?? 0) >= 20) return { error: "You can have up to 20 sender addresses." };
   const { error } = await db.from("sender_addresses").upsert({ workspace_id: workspace.id, email, name }, { onConflict: "workspace_id,email" });
   if (error) return { error: error.message };
+  // An address at a domain they've already connected needs no confirmation email.
+  const { data: dom } = await db.from("sending_domains").select("id").eq("workspace_id", workspace.id).eq("domain", email.split("@")[1]).eq("status", "verified").maybeSingle();
+  if (dom) {
+    const now = new Date().toISOString();
+    await db.from("sender_addresses").update({ verified_at: now, ses_verified_at: now }).eq("workspace_id", workspace.id).eq("email", email);
+    revalidatePath("/app/settings", "layout");
+    return { ok: `${email} is ready to use ✓` };
+  }
   let via: "branded" | "amazon" = "branded";
   try {
     const { isEmailVerified, requestEmailVerification } = await import("@/lib/ses");
